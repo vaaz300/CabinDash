@@ -13,14 +13,14 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 
 | | Status |
 |---|---|
-| Swift code compiles | **Not known.** It has never been compiled. The first run of the cloud build is the first time anything does. |
-| 98 unit tests pass | **Not known.** They have never run. |
-| Cloud build (GitHub Actions) | Written and checked for syntax. **Has never run.** |
-| Helper scripts used by the build | Their own 34 tests pass here, on sample data. They have not seen real Xcode output yet. |
+| Swift code compiles | **Yes, for the iOS Simulator.** The cloud build compiled it on GitHub's macOS runner (Xcode 26.5) and went green on 25 Oct 2026, after one fix to the project checker. |
+| 98 unit tests pass | **Reported passing** by the cloud build, on the Mac and on the simulator. Its test-count step fails the run if fewer than the 98 declared tests executed. Exact counts and warnings are on the run's summary page, not recorded here. |
+| App starts | The launch step saw the app still running 12 seconds after launch on a simulator. Its screenshot has not been reviewed yet. |
+| Helper scripts used by the build | 34 tests pass here, on sample data. The first real run exposed one bug in the project checker (fixed). The simulator picker and test-count checks have since passed on real output; the error-summary helpers have not been looked at yet. |
 | URL-scheme list matches the app catalogue | Checked by script: yes (37 apps, 30 schemes). |
 | App installed on an iPhone | No. See `docs/DEVICE-INSTALL.md`. |
 
-Nothing in this repository claims a build or test passed unless the cloud build says so. If the build fails, that is useful news: it is the first real error list.
+Nothing in this repository claims a build or test passed unless the cloud build says so. A green simulator build does not mean the app works on a real iPhone: signing, real GPS, and detection of your real apps are still untested.
 
 ## Part 1. Put the project on GitHub
 

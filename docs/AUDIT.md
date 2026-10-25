@@ -2,7 +2,13 @@
 
 This is what was checked in the existing project before any build was set up, what was changed, and what was left alone on purpose.
 
-**The important sentence:** every Swift file was read by hand, and no definite compile error was found. That is not evidence that the app compiles. No Swift compiler has ever run on this code, because it was written on Linux with no Xcode. The first real answer comes from the first run of the **iOS build** workflow.
+**The important sentence (as written before the first build):** every Swift file was read by hand, and no definite compile error was found. That was not evidence the app compiles, because no Swift compiler had ever run on this code.
+
+**What the first cloud runs showed (25 Oct 2026):**
+
+* **Run 1 failed in the "Check the generated project" step.** The cause was two false alarms in my own checker: XcodeGen puts the deployment target on the project rather than the target, and the scheme check only looked in one place. Fixed in commit `2311127`. My test data had made the same wrong assumption, which is why the tests had passed.
+* **Run 2 passed every step:** project generation and check, the Mac tests, the simulator build, the simulator tests and their test-count check, and the launch check.
+* **Not yet looked at:** the compiler warnings, the exact number of tests executed, and the launch screenshot. They are on the run's summary page and in its downloadable artifact.
 
 ## What was in scope
 
@@ -45,9 +51,9 @@ Not changed, deliberately: the design, the features, the deployment target (iOS 
 
 These cannot be settled without a compiler or a phone. Changing code to avoid them would be guessing.
 
-1. **Nothing has been compiled.** Most likely places for a first error: SwiftUI view bodies the type checker finds too complex, concurrency isolation in `LocationModel`'s delegate, and Swift Testing macro expansions. When it happens, copy the "App build" block from the run's summary page to Claude.
-2. **XcodeGen has never run on `project.yml`.** The workflow's *Check the generated project* step compares XcodeGen's output with the files on disk (sources, assets, privacy manifest, package link, URL schemes, location text), so a quiet omission turns into a red step.
-3. **Does the `CabinCore` package scheme include the test target under `xcodebuild test`?** I believe it does, but I could not confirm it. If it does not, the simulator test step fails with "No tests were executed" and the Mac `swift test` step still covers the same 98 tests.
+1. **~~Nothing has been compiled.~~ Compiled once, for the simulator only (see above).** Not yet known: how many warnings it produced, and whether it builds for a real device or passes Apple's upload checks. For reference, the places I thought most likely to fail were: SwiftUI view bodies the type checker finds too complex, concurrency isolation in `LocationModel`'s delegate, and Swift Testing macro expansions. When it happens, copy the "App build" block from the run's summary page to Claude.
+2. **~~XcodeGen has never run~~ XcodeGen ran, and the generated project passed the check.** The workflow's *Check the generated project* step compares XcodeGen's output with the files on disk (sources, assets, privacy manifest, package link, URL schemes, location text), so a quiet omission turns into a red step.
+3. **~~Does the `CabinCore` package scheme include the test target under `xcodebuild test`?~~ The simulator test step and its test-count check passed, so it appears to.** If it had not, the simulator test step fails with "No tests were executed" and the Mac `swift test` step still covers the same 98 tests.
 4. **Six URL schemes are best guesses:** SiriusXM, iHeartRadio, TuneIn, SpotHero, ChatGPT and Claude (marked in `Catalog.swift`). A wrong guess means that app is not auto-detected and opens its web or App Store page instead.
 5. **App Store ids in the catalogue were not re-verified.** The App Store lookup service cannot be reached from the build environment I used. At runtime the app checks every icon result against the app's name, so a wrong id cannot put the wrong *icon* on a tile. It can, though, make the *fallback* link (used when an app is not installed and has no website) open the wrong App Store page. Look at any app that opens something unexpected.
 6. **Reduced-accuracy location is not handled.** If you turn off "Precise Location" for Cabin Dash, iOS gives approximate positions only. The trip tracker rejects readings coarser than 40 m, so speed and distance will not work, and nothing on screen says why. See `docs/IOS-LIMITS.md`.
