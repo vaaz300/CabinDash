@@ -1,0 +1,23 @@
+// Signing settings for Cabin Dash. Nothing in this file is secret and nothing here is a certificate.
+//
+// The cloud simulator build (.github/workflows/ios-build.yml) switches signing off, so it does not use these.
+// They matter only when the app is built for a real iPhone.
+//
+// To set your own values WITHOUT editing a file that is checked in, create Config/Signing.local.xcconfig next to
+// this file. It is listed in .gitignore, so it is never committed. Example:
+//
+//     DEVELOPMENT_TEAM = ABCDE12345
+//     CABIN_BUNDLE_ID = com.yourname.cabindash
+//
+// CI builds pass the same values on the command line from GitHub secrets, which override this file.
+// See docs/DEVICE-INSTALL.md. Never put passwords, private keys (.p8, .p12) or provisioning profiles in this repo.
+
+// Bundle identifiers are unique per Apple account. Change this to something that is yours before a device build.
+CABIN_BUNDLE_ID = com.cabindash.personal
+
+// Your 10-character Apple Team ID. Empty means "not set", which is fine for simulator builds.
+DEVELOPMENT_TEAM =
+
+CODE_SIGN_STYLE = Automatic
+
+#include? "Signing.local.xcconfig"

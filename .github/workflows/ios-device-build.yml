@@ -1,0 +1,165 @@
+name: Device build to TestFlight (OFF until set up)
+
+# THIS WORKFLOW IS SWITCHED OFF. It does nothing until you complete docs/DEVICE-INSTALL.md, route C, and then
+# set the repository variable ENABLE_DEVICE_BUILD to the text: true
+#
+# It signs the app with an App Store Connect API key and uploads it to TestFlight, which needs a paid
+# Apple Developer Program membership. Signing material never lives in this repository:
+#
+#   Repository secrets (Settings > Secrets and variables > Actions > Secrets)
+#     ASC_KEY_ID       the Key ID of your App Store Connect API key
+#     ASC_ISSUER_ID    the Issuer ID shown above the key list
+#     ASC_KEY_P8       the full text of the downloaded AuthKey_XXXX.p8 file
+#   Repository variables (same page, Variables tab; these are not secret)
+#     ENABLE_DEVICE_BUILD   true
+#     APPLE_TEAM_ID         your 10-character Team ID
+#     CABIN_BUNDLE_ID       a bundle id that is yours, for example com.yourname.cabindash
+#
+# Not verified: this workflow has never run, and nothing in it has been tested against Apple's services.
+# Expect to fix it with the first real error message. It is manual-only, so it cannot run by accident.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  explain-switched-off:
+    name: Device build is switched off
+    if: ${{ vars.ENABLE_DEVICE_BUILD != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Explain
+        run: |
+          echo "::notice title=Device build is switched off::Nothing was built. Follow docs/DEVICE-INSTALL.md (route C), then set the repository variable ENABLE_DEVICE_BUILD to true."
+          {
+            echo "### Device build is switched off"
+            echo
+            echo "No signing was attempted and no secrets were read."
+            echo "To enable it, follow route C in docs/DEVICE-INSTALL.md, then add the repository variable"
+            echo "\`ENABLE_DEVICE_BUILD\` with the value \`true\`."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  signed-build:
+    name: Sign and upload to TestFlight
+    if: ${{ vars.ENABLE_DEVICE_BUILD == 'true' }}
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      CABIN_BUNDLE_ID: ${{ vars.CABIN_BUNDLE_ID }}
+
+    steps:
+      - name: Check that everything needed is set
+        run: |
+          missing=""
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 APPLE_TEAM_ID CABIN_BUNDLE_ID; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error title=Device build is not set up::These are empty or missing:${missing}. Add them as described at the top of .github/workflows/ios-device-build.yml and in docs/DEVICE-INSTALL.md. Values are never printed."
+            exit 1
+          fi
+          if ! printf '%s' "$APPLE_TEAM_ID" | grep -Eq '^[A-Z0-9]{10}$'; then
+            echo "::error title=APPLE_TEAM_ID looks wrong::A Team ID is exactly 10 letters and digits, for example ABCDE12345."
+            exit 1
+          fi
+          if ! printf '%s' "$ASC_KEY_P8" | grep -q 'BEGIN PRIVATE KEY'; then
+            echo "::error title=ASC_KEY_P8 looks wrong::The secret should be the whole text of the .p8 file, starting with the BEGIN PRIVATE KEY line."
+            exit 1
+          fi
+
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Prepare output folder
+        run: mkdir -p ci-artifacts
+
+      - name: Check repository layout and secrets
+        run: python3 scripts/ci/check_repo.py
+
+      - name: Set up Xcode and XcodeGen
+        uses: ./.github/actions/setup-ios-toolchain
+
+      - name: Generate the Xcode project (XcodeGen)
+        run: xcodegen generate --spec project.yml 2>&1 | tee ci-artifacts/xcodegen.log
+
+      - name: Check the generated project contains everything
+        run: python3 scripts/ci/verify_generated_project.py
+
+      - name: Write the API key to a temporary file
+        run: |
+          umask 077
+          key_path="$RUNNER_TEMP/AuthKey_${ASC_KEY_ID}.p8"
+          printf '%s\n' "$ASC_KEY_P8" > "$key_path"
+          echo "ASC_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      - name: Archive with automatic signing
+        run: |
+          xcodebuild archive \
+            -project CabinDash.xcodeproj \
+            -scheme CabinDash \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/CabinDash.xcarchive \
+            -derivedDataPath build/DerivedData \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CABIN_BUNDLE_ID="$CABIN_BUNDLE_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            2>&1 | tee ci-artifacts/xcodebuild-archive-signed.log
+
+      - name: Summarize archive
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/xcodebuild-archive-signed.log --title "Signed archive"
+
+      - name: Export and upload to TestFlight
+        run: |
+          cat > build/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath build/CabinDash.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist build/ExportOptions.plist \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee ci-artifacts/xcodebuild-export-upload.log
+
+      - name: Delete the temporary API key file
+        if: ${{ always() }}
+        run: rm -f "${ASC_KEY_PATH:-/nonexistent}"
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-build-logs-${{ github.run_number }}
+          path: |
+            ci-artifacts/*.log
+            ci-artifacts/*.txt
+          if-no-files-found: warn
+          retention-days: 14

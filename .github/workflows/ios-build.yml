@@ -1,0 +1,220 @@
+name: iOS build
+
+# Builds Cabin Dash for the iOS Simulator and runs the unit tests. No Apple account or signing secrets are used.
+#
+# A green run means: the Swift sources compiled with the pinned Xcode, the tests below ran and passed, and the app
+# stayed running for 12 seconds on one simulator. It does not mean the app can be installed on a real iPhone.
+# See docs/DEVICE-INSTALL.md for that.
+#
+# Every gating step is reported separately, and a step that depends on an earlier one is skipped only when that
+# earlier one failed. Nothing here ignores a failure: if any step goes red the whole run is red.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+# A newer push to the same branch replaces a run that is still going, so macOS minutes are not spent twice.
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test (iOS Simulator)
+    # macOS runner image. To change Xcode, change xcode-version in .github/actions/setup-ios-toolchain/action.yml,
+    # and check the new version is installed on whichever image is named here.
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        # `bash` here means bash with pipefail, so `xcodebuild | tee log` fails when xcodebuild fails.
+        shell: bash
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Prepare output folder
+        run: mkdir -p ci-artifacts
+
+      - name: Check repository layout and secrets
+        id: repo
+        run: python3 scripts/ci/check_repo.py
+
+      - name: Set up Xcode and XcodeGen
+        id: toolchain
+        uses: ./.github/actions/setup-ios-toolchain
+
+      - name: Check URL schemes against the app catalogue
+        id: schemes
+        if: ${{ !cancelled() && steps.repo.outcome == 'success' }}
+        run: python3 scripts/check_schemes.py
+
+      - name: Generate the Xcode project (XcodeGen)
+        id: generate
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: xcodegen generate --spec project.yml 2>&1 | tee ci-artifacts/xcodegen.log
+
+      - name: Check the generated project contains everything
+        id: verify
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: python3 scripts/ci/verify_generated_project.py
+
+      - name: Choose an iPhone simulator
+        id: simulator
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        run: python3 scripts/ci/select_simulator.py
+
+      # --- CabinCore unit tests on the Mac itself (fast, no simulator) -------------------------------------------
+
+      - name: Unit tests on the Mac (swift test)
+        id: host_tests
+        if: ${{ !cancelled() && steps.toolchain.outcome == 'success' }}
+        timeout-minutes: 20
+        working-directory: CabinCore
+        run: swift test 2>&1 | tee ../ci-artifacts/swift-test-host.log
+
+      - name: Summarize Mac test build
+        if: ${{ !cancelled() && steps.host_tests.outcome != 'skipped' }}
+        run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/swift-test-host.log --title "Mac tests (swift test)"
+
+      - name: Confirm the Mac tests really ran
+        id: host_tests_check
+        if: ${{ !cancelled() && steps.host_tests.outcome != 'skipped' }}
+        run: >
+          python3 scripts/ci/check_tests.py
+          --tests-dir CabinCore/Tests
+          --log ci-artifacts/swift-test-host.log
+          --label "macOS host"
+
+      # --- The app, built for the simulator ----------------------------------------------------------------------
+
+      - name: Build the app for the iOS Simulator
+        id: build
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' && steps.simulator.outcome == 'success' }}
+        timeout-minutes: 25
+        run: |
+          xcodebuild build \
+            -project CabinDash.xcodeproj \
+            -scheme CabinDash \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${SIM_UDID}" \
+            -derivedDataPath build/DerivedData \
+            -resultBundlePath ci-artifacts/CabinDash-Build.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | tee ci-artifacts/xcodebuild-build.log
+
+      - name: Summarize app build
+        if: ${{ !cancelled() && steps.build.outcome != 'skipped' }}
+        run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/xcodebuild-build.log --title "App build"
+
+      # --- CabinCore tests on the simulator ----------------------------------------------------------------------
+
+      - name: Unit tests on the iOS Simulator
+        id: sim_tests
+        if: ${{ !cancelled() && steps.simulator.outcome == 'success' }}
+        timeout-minutes: 20
+        working-directory: CabinCore
+        run: |
+          scheme=$(xcodebuild -list -json | python3 ../scripts/ci/pick_package_scheme.py)
+          echo "Testing package scheme: ${scheme}"
+          xcodebuild test \
+            -scheme "${scheme}" \
+            -destination "platform=iOS Simulator,id=${SIM_UDID}" \
+            -derivedDataPath ../build/DerivedData-tests \
+            -resultBundlePath ../ci-artifacts/CabinCore-Simulator.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee ../ci-artifacts/xcodebuild-test-simulator.log
+
+      - name: Summarize simulator tests
+        if: ${{ !cancelled() && steps.sim_tests.outcome != 'skipped' }}
+        run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/xcodebuild-test-simulator.log --title "Simulator tests"
+
+      - name: Confirm the simulator tests really ran
+        id: sim_tests_check
+        if: ${{ !cancelled() && steps.sim_tests.outcome != 'skipped' }}
+        run: >
+          python3 scripts/ci/check_tests.py
+          --tests-dir CabinCore/Tests
+          --log ci-artifacts/xcodebuild-test-simulator.log
+          --xcresult ci-artifacts/CabinCore-Simulator.xcresult
+          --label "iOS Simulator"
+
+      # --- Does the built app start? -----------------------------------------------------------------------------
+
+      - name: Launch the app on the simulator
+        id: launch
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        timeout-minutes: 10
+        # Run through `bash` on purpose: files uploaded from Windows through the GitHub website lose their
+        # "executable" flag, so calling the script directly would fail with "Permission denied".
+        run: >
+          bash scripts/ci/launch_check.sh
+          build/DerivedData/Build/Products/Debug-iphonesimulator/CabinDash.app
+          ci-artifacts
+
+      # --- Always: keep the evidence ------------------------------------------------------------------------------
+
+      - name: Upload logs and results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-results-${{ github.run_number }}
+          path: ci-artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Results table
+        if: ${{ always() }}
+        env:
+          R_REPO: ${{ steps.repo.outcome }}
+          R_TOOLCHAIN: ${{ steps.toolchain.outcome }}
+          R_SCHEMES: ${{ steps.schemes.outcome }}
+          R_GENERATE: ${{ steps.generate.outcome }}
+          R_VERIFY: ${{ steps.verify.outcome }}
+          R_SIMULATOR: ${{ steps.simulator.outcome }}
+          R_HOST_TESTS: ${{ steps.host_tests.outcome }}
+          R_HOST_CHECK: ${{ steps.host_tests_check.outcome }}
+          R_BUILD: ${{ steps.build.outcome }}
+          R_SIM_TESTS: ${{ steps.sim_tests.outcome }}
+          R_SIM_CHECK: ${{ steps.sim_tests_check.outcome }}
+          R_LAUNCH: ${{ steps.launch.outcome }}
+        run: |
+          row() { printf '| %s | %s |\n' "$1" "$2"; }
+          {
+            echo "## Cabin Dash: iOS Simulator build"
+            echo
+            echo "| Step | Result |"
+            echo "|---|---|"
+            row "Repository layout and secrets" "$R_REPO"
+            row "Xcode and XcodeGen set up" "$R_TOOLCHAIN"
+            row "URL schemes match the catalogue" "$R_SCHEMES"
+            row "XcodeGen generated the project" "$R_GENERATE"
+            row "Generated project contains every file" "$R_VERIFY"
+            row "Simulator chosen" "$R_SIMULATOR"
+            row "Mac unit tests ran" "$R_HOST_TESTS"
+            row "Mac test count confirmed" "$R_HOST_CHECK"
+            row "App compiled for the iOS Simulator" "$R_BUILD"
+            row "Simulator unit tests ran" "$R_SIM_TESTS"
+            row "Simulator test count confirmed" "$R_SIM_CHECK"
+            row "App stayed running 12 s after launch" "$R_LAUNCH"
+            echo
+            echo "success = it ran and passed. failure = it ran and failed. skipped = an earlier step failed first."
+            echo
+            echo "Not proven by any of this: installing on a real iPhone, code signing, GPS accuracy while moving,"
+            echo "how the landscape layout looks, and how iOS reports installed apps on a device."
+            echo
+            echo "Build errors are listed in the 'App build' section above and in the downloadable results."
+          } >> "$GITHUB_STEP_SUMMARY"

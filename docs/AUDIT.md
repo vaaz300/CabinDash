@@ -1,0 +1,56 @@
+# Audit before the first cloud build
+
+This is what was checked in the existing project before any build was set up, what was changed, and what was left alone on purpose.
+
+**The important sentence:** every Swift file was read by hand, and no definite compile error was found. That is not evidence that the app compiles. No Swift compiler has ever run on this code, because it was written on Linux with no Xcode. The first real answer comes from the first run of the **iOS build** workflow.
+
+## What was in scope
+
+| Area | Covered |
+|---|---|
+| Swift sources | all 30 files (about 3,500 lines): the 8 `CabinCore` sources plus its `Package.swift`, the 17 app files in `CabinDash/`, and the 4 test files |
+| Project definition | `project.yml` (XcodeGen), the generated `Config/Info.plist`, `Config/Signing.xcconfig` |
+| Permissions and privacy | location text, background modes, `PrivacyInfo.xcprivacy`, entitlements |
+| Resources | `Assets.xcassets` (app icon, accent colour, launch colour) |
+| URL schemes | the app catalogue, `LSApplicationQueriesSchemes`, and the app-opening code |
+| Tests and scripts | `CabinCore/Tests`, `scripts/` |
+
+## Changes made
+
+The brief asked for the smallest changes that give a working build, so the list is short. None of the first four is a confirmed compile error. Each removes a spot where I could not rule one out by reading.
+
+| File | Change | Why |
+|---|---|---|
+| `CabinDash/Model/ToastCenter.swift` | added `import Observation` | `@Observable` comes from the Observation module. SwiftUI probably re-exports it, but an explicit import cannot hurt. |
+| `CabinDash/Views/RootView.swift` | the two `.task { }` closures now use `self.model` and `self.location` | Inside the view, `model` is also a local `@Bindable` variable. `.task` closures are `@Sendable`, and a local variable should not be captured by one. The environment value should. |
+| `CabinDash/Views/SettingsSheet.swift` | `Task { await self.model.refreshIcons() }` | Same reason, same pattern. |
+| `CabinCore/Tests/CabinCoreTests/DriveTests.swift` | two calls to the mutating `trip.ingest(...)` moved out of `#expect(...)` into a `let` first | A mutating call on a `var` inside the `#expect` macro is a place Swift Testing can refuse to compile. |
+| `project.yml`, `Config/Signing.xcconfig`, `.gitignore` | signing values moved out of `project.yml` into an xcconfig; personal values go in a git-ignored `Config/Signing.local.xcconfig` | "Keep signing configuration out of the source code." The bundle id is `$(CABIN_BUNDLE_ID)`, and `DEVELOPMENT_TEAM` is empty in the repository. |
+
+Fixed earlier, before this brief (already in the project you have): missing `import Observation` in three model files, task-closure actor isolation (moved into `AppModel.startUp(location:)`), a `self`-before-init in `IconStore`, a `MainActor.assumeIsolated` result, a translucent app icon (Apple rejects icons with transparency), a bug in the scheme-checking script, the dock stretching in landscape, and saved apps failing to decode when a field was missing.
+
+Not changed, deliberately: the design, the features, the deployment target (iOS 17.0), the dependency list (there are none outside Apple's frameworks), and `SWIFT_VERSION` (5.0, which reports most concurrency problems as warnings rather than errors, so a first build is more likely to get as far as the real findings).
+
+## Checked and found consistent
+
+* **Catalogue, URL schemes and Info.plist agree.** `python3 scripts/check_schemes.py` reported: 37 catalogue apps, 30 distinct schemes (iOS allows at most 50), and `Catalog.swift` and `project.yml` match. The CI run repeats this check, and it also compares the *generated* Info.plist.
+* **Location permission.** `NSLocationWhenInUseUsageDescription` is present, with plain wording. There is no "Always" key and no background mode, which matches the code (updates stop when the app leaves the screen).
+* **Privacy manifest.** `PrivacyInfo.xcprivacy` declares no tracking, no collected data, and one required-reason API: UserDefaults (reason `CA92.1`). A search of the sources for the other required-reason APIs (file timestamps, system uptime, disk space, keyboard mode) found none.
+* **Entitlements.** None are needed and none exist: no push, no CarPlay entitlement, no app groups, no background modes.
+* **Deployment target.** `project.yml` and `CabinCore/Package.swift` both say iOS 17 (the package also says macOS 14 so `swift test` can run on a Mac). The APIs in use (`@Observable`, the two-parameter `onChange`, `AccessibilityNotification`) need iOS 17.
+* **Assets.** The 1024 px app icon has no transparency; `AccentColor` and `LaunchBackground` exist under the names `project.yml` refers to.
+* **Tests.** 98 `@Test` functions, all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
+
+## Open risks (documented, not "fixed")
+
+These cannot be settled without a compiler or a phone. Changing code to avoid them would be guessing.
+
+1. **Nothing has been compiled.** Most likely places for a first error: SwiftUI view bodies the type checker finds too complex, concurrency isolation in `LocationModel`'s delegate, and Swift Testing macro expansions. When it happens, copy the "App build" block from the run's summary page to Claude.
+2. **XcodeGen has never run on `project.yml`.** The workflow's *Check the generated project* step compares XcodeGen's output with the files on disk (sources, assets, privacy manifest, package link, URL schemes, location text), so a quiet omission turns into a red step.
+3. **Does the `CabinCore` package scheme include the test target under `xcodebuild test`?** I believe it does, but I could not confirm it. If it does not, the simulator test step fails with "No tests were executed" and the Mac `swift test` step still covers the same 98 tests.
+4. **Six URL schemes are best guesses:** SiriusXM, iHeartRadio, TuneIn, SpotHero, ChatGPT and Claude (marked in `Catalog.swift`). A wrong guess means that app is not auto-detected and opens its web or App Store page instead.
+5. **App Store ids in the catalogue were not re-verified.** The App Store lookup service cannot be reached from the build environment I used. At runtime the app checks every icon result against the app's name, so a wrong id cannot put the wrong *icon* on a tile. It can, though, make the *fallback* link (used when an app is not installed and has no website) open the wrong App Store page. Look at any app that opens something unexpected.
+6. **Reduced-accuracy location is not handled.** If you turn off "Precise Location" for Cabin Dash, iOS gives approximate positions only. The trip tracker rejects readings coarser than 40 m, so speed and distance will not work, and nothing on screen says why. See `docs/IOS-LIMITS.md`.
+7. **Landscape and the side dock were reviewed in code only.** No screenshot has been taken of it.
+8. **Workflow actions are pinned to major versions (`@v4`), not to commit hashes.** I could not look up hashes from the build environment. Pinning to hashes is the stricter option if you ever make this repository more than personal. If GitHub starts warning that these versions are outdated, move them to the newer major versions after checking they exist.
+9. **The CI helper scripts parse real Xcode output** (log lines, result bundles, the generated project file, simulator listings). They were tested only against hand-written examples of that output. If a format differs, a helper may report something odd; the underlying `xcodebuild` log is always uploaded unedited so nothing is hidden.

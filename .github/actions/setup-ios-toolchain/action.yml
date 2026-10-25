@@ -1,0 +1,101 @@
+name: Set up iOS toolchain
+description: >
+  Selects a pinned Xcode and installs a pinned XcodeGen on a GitHub macOS runner.
+  This is the one place the tool versions are set, for every Cabin Dash workflow.
+
+inputs:
+  xcode-version:
+    description: >
+      Xcode to select. It has to be installed on the runner image. The list for each image is in the
+      actions/runner-images repository (look for the image named in runs-on).
+    default: "26.5"
+  xcodegen-version:
+    description: XcodeGen release to install.
+    default: "2.45.4"
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode
+      shell: bash
+      env:
+        XCODE_VERSION: ${{ inputs.xcode-version }}
+      run: |
+        set -euo pipefail
+        app="/Applications/Xcode_${XCODE_VERSION}.app"
+        if [ ! -d "$app" ]; then
+          echo "::error title=Xcode ${XCODE_VERSION} is not on this runner::${app} does not exist. Choose one of the installed versions listed in the log, in .github/actions/setup-ios-toolchain/action.yml (xcode-version), or change runs-on in the workflow."
+          echo "Xcode versions installed on this runner:"
+          ls -d /Applications/Xcode*.app || true
+          exit 1
+        fi
+        sudo xcode-select -s "$app/Contents/Developer"
+        echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+
+        reported=$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version | head -n 1)
+        echo "xcodebuild reports: $reported"
+        if [ "$reported" != "Xcode ${XCODE_VERSION}" ]; then
+          echo "::error title=Wrong Xcode selected::Expected 'Xcode ${XCODE_VERSION}' but xcodebuild reports '${reported}'."
+          exit 1
+        fi
+        DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version
+        DEVELOPER_DIR="$app/Contents/Developer" swift --version
+
+    - name: Install XcodeGen
+      shell: bash
+      env:
+        XCODEGEN_VERSION: ${{ inputs.xcodegen-version }}
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+        HOMEBREW_NO_INSTALL_CLEANUP: "1"
+      run: |
+        set -euo pipefail
+        work="$RUNNER_TEMP/xcodegen-${XCODEGEN_VERSION}"
+        rm -rf "$work"
+        mkdir -p "$work/dist"
+
+        # Preferred: the exact release that is pinned. The zip keeps xcodegen's `bin` and `share` folders
+        # together, and the binary looks for its setting presets next to itself, so the folder is added to PATH
+        # as it is instead of copying the binary elsewhere.
+        url="https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+        bin=""
+        if curl -fsSL --retry 3 --retry-delay 2 -o "$work/xcodegen.zip" "$url" \
+           && unzip -q "$work/xcodegen.zip" -d "$work/dist"; then
+          bin=$(find "$work/dist" -type f -name xcodegen | head -n 1)
+        fi
+
+        if [ -n "$bin" ]; then
+          chmod +x "$bin"
+          found=$("$bin" --version 2>&1 || true)
+          if grep -qF "$XCODEGEN_VERSION" <<<"$found"; then
+            echo "$(dirname "$bin")" >> "$GITHUB_PATH"
+            echo "Installed XcodeGen from the ${XCODEGEN_VERSION} release: $found"
+            exit 0
+          fi
+          echo "The downloaded binary reports '$found', not ${XCODEGEN_VERSION}."
+        else
+          echo "Could not download or unpack ${url}."
+        fi
+
+        # Fallback: Homebrew. This installs whatever version Homebrew currently ships, so the run says so
+        # loudly instead of pretending the pin was honoured.
+        echo "Falling back to Homebrew."
+        brew install xcodegen
+        found=$(xcodegen --version 2>&1 || true)
+        echo "Homebrew installed: $found"
+        echo "::warning title=XcodeGen is not the pinned version::The ${XCODEGEN_VERSION} release could not be used, so Homebrew's XcodeGen was installed instead (${found}). The project is still checked after generation, but update xcodegen-version in .github/actions/setup-ios-toolchain/action.yml if this keeps happening."
+
+    - name: Show tool versions
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          echo "### Toolchain"
+          echo
+          echo '```text'
+          sw_vers | tr '\n' ' '; echo
+          xcodebuild -version | tr '\n' ' '; echo
+          swift --version 2>&1 | head -n 1
+          echo "XcodeGen: $(xcodegen --version 2>&1 | head -n 1)"
+          echo "Python: $(python3 --version 2>&1)"
+          echo '```'
+        } | tee -a "$GITHUB_STEP_SUMMARY"

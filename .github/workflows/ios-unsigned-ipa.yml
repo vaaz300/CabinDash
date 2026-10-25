@@ -1,0 +1,101 @@
+name: Unsigned IPA (manual)
+
+# Builds an UNSIGNED .ipa of Cabin Dash, for people without a Mac who will sign it on their own computer with a
+# free Apple ID using a tool such as Sideloadly or AltStore. See docs/DEVICE-INSTALL.md, route B.
+#
+# Run it only after "iOS build" is green. It is manual on purpose (Actions tab > this workflow > Run workflow),
+# so it never spends macOS minutes by itself. It needs no secrets and no Apple account. Nothing in the .ipa is signed.
+#
+# Not verified: this workflow has never run. Whether Sideloadly or AltStore accept the file, and how long the
+# result stays installed, is not something this repository can prove.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unsigned-ipa:
+    name: Archive without signing
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Prepare output folder
+        run: mkdir -p ci-artifacts
+
+      - name: Check repository layout and secrets
+        run: python3 scripts/ci/check_repo.py
+
+      - name: Set up Xcode and XcodeGen
+        uses: ./.github/actions/setup-ios-toolchain
+
+      - name: Generate the Xcode project (XcodeGen)
+        run: xcodegen generate --spec project.yml 2>&1 | tee ci-artifacts/xcodegen.log
+
+      - name: Check the generated project contains everything
+        run: python3 scripts/ci/verify_generated_project.py
+
+      - name: Archive for iOS devices without signing
+        run: |
+          xcodebuild archive \
+            -project CabinDash.xcodeproj \
+            -scheme CabinDash \
+            -configuration Release \
+            -destination "generic/platform=iOS" \
+            -archivePath build/CabinDash.xcarchive \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            2>&1 | tee ci-artifacts/xcodebuild-archive.log
+
+      - name: Summarize archive
+        if: ${{ !cancelled() }}
+        run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/xcodebuild-archive.log --title "Unsigned archive"
+
+      - name: Package the .ipa
+        run: |
+          app="build/CabinDash.xcarchive/Products/Applications/CabinDash.app"
+          if [ ! -d "$app" ]; then
+            echo "::error title=Package .ipa::The archive does not contain $app. Applications that were found:"
+            ls -R build/CabinDash.xcarchive/Products || true
+            exit 1
+          fi
+          rm -rf build/ipa
+          mkdir -p build/ipa/Payload
+          cp -R "$app" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../../ci-artifacts/CabinDash-unsigned.ipa Payload)
+          ls -l ci-artifacts/CabinDash-unsigned.ipa
+          {
+            echo "### Unsigned IPA"
+            echo
+            echo "Built from commit \`${GITHUB_SHA}\`. Download **cabindash-unsigned-ipa** from the Artifacts list below."
+            echo "It is not signed. It will not install on an iPhone until a tool signs it with your Apple ID."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the .ipa
+        uses: actions/upload-artifact@v4
+        with:
+          name: cabindash-unsigned-ipa
+          path: ci-artifacts/CabinDash-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-ipa-logs-${{ github.run_number }}
+          path: |
+            ci-artifacts/*.log
+            ci-artifacts/*.txt
+          if-no-files-found: warn
+          retention-days: 14
