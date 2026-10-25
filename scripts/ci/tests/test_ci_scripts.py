@@ -243,7 +243,7 @@ def fake_project(root: pathlib.Path):
     package = new({"isa": "XCLocalSwiftPackageReference", "relativePath": "CabinCore"})
 
     settings = {
-        "INFOPLIST_FILE": "Config/Info.plist", "IPHONEOS_DEPLOYMENT_TARGET": "17.0",
+        "INFOPLIST_FILE": "Config/Info.plist",
         "TARGETED_DEVICE_FAMILY": "1", "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon",
         "ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME": "AccentColor",
         "PRODUCT_BUNDLE_IDENTIFIER": "$(CABIN_BUNDLE_ID)",
@@ -251,7 +251,10 @@ def fake_project(root: pathlib.Path):
     xcconfig = new({"isa": "PBXFileReference", "path": "Config/Signing.xcconfig", "sourceTree": "SOURCE_ROOT"})
     target_configs = [new({"isa": "XCBuildConfiguration", "name": n, "buildSettings": dict(settings)})
                       for n in ("Debug", "Release")]
-    project_configs = [new({"isa": "XCBuildConfiguration", "name": n, "buildSettings": {},
+    # Seen in a real GitHub run: XcodeGen writes options.deploymentTarget on the PROJECT configurations,
+    # and leaves it off the target. The first version of this fixture had it on the target, which hid a bug.
+    project_configs = [new({"isa": "XCBuildConfiguration", "name": n,
+                            "buildSettings": {"IPHONEOS_DEPLOYMENT_TARGET": "17.0"},
                             "baseConfigurationReference": xcconfig}) for n in ("Debug", "Release")]
     target = new({
         "isa": "PBXNativeTarget", "name": "CabinDash", "productType": "com.apple.product-type.application",
@@ -298,7 +301,45 @@ class VerifyProjectTests(unittest.TestCase):
 
     def test_a_missing_scheme_is_reported(self):
         data, _ = fake_project(REPO)
-        self.assertTrue(any("scheme" in d for d, _, _ in self.run_check(data, scheme_exists=False)))
+        self.assertTrue(any("cheme" in d for d, _, _ in self.run_check(data, scheme_exists=False)))
+
+    def project_configs(self, data):
+        project = next(o for o in data["objects"].values() if o["isa"] == "PBXProject")
+        ids = data["objects"][project["buildConfigurationList"]]["buildConfigurations"]
+        return [data["objects"][i] for i in ids]
+
+    def test_deployment_target_is_read_from_the_project_level(self):
+        data, _ = fake_project(REPO)
+        self.assertTrue(all(c["buildSettings"]["IPHONEOS_DEPLOYMENT_TARGET"] == "17.0"
+                            for c in self.project_configs(data)))
+        self.assertEqual(self.run_check(data), [])
+
+    def test_a_target_level_value_overrides_the_project_level(self):
+        data, ids = fake_project(REPO)
+        target = data["objects"][ids["target"]]
+        for config_id in data["objects"][target["buildConfigurationList"]]["buildConfigurations"]:
+            data["objects"][config_id]["buildSettings"]["IPHONEOS_DEPLOYMENT_TARGET"] = "16.0"
+        failures = self.run_check(data)
+        self.assertEqual(len(failures), 2)
+        self.assertTrue(all("deployment target" in d for d, _, _ in failures))
+
+    def test_a_missing_deployment_target_is_reported(self):
+        data, _ = fake_project(REPO)
+        for config in self.project_configs(data):
+            del config["buildSettings"]["IPHONEOS_DEPLOYMENT_TARGET"]
+        failures = self.run_check(data)
+        self.assertEqual(len(failures), 2)
+        self.assertIn("None", failures[0][2])
+
+    def test_scheme_lookup_accepts_a_shared_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            project = pathlib.Path(folder) / "CabinDash.xcodeproj"
+            schemes = project / "xcshareddata" / "xcschemes"
+            schemes.mkdir(parents=True)
+            (schemes / "CabinDash.xcscheme").write_text("<Scheme/>")
+            found, detail = verify.find_scheme(project)
+        self.assertTrue(found)
+        self.assertIn("shared", detail)
 
 
 # Built in pieces so this file does not itself contain a PEM header that the repository scan would flag.

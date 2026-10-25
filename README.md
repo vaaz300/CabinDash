@@ -16,7 +16,7 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 | Swift code compiles | **Not known.** It has never been compiled. The first run of the cloud build is the first time anything does. |
 | 98 unit tests pass | **Not known.** They have never run. |
 | Cloud build (GitHub Actions) | Written and checked for syntax. **Has never run.** |
-| Helper scripts used by the build | Their own 30 tests pass here, on sample data. They have not seen real Xcode output yet. |
+| Helper scripts used by the build | Their own 34 tests pass here, on sample data. They have not seen real Xcode output yet. |
 | URL-scheme list matches the app catalogue | Checked by script: yes (37 apps, 30 schemes). |
 | App installed on an iPhone | No. See `docs/DEVICE-INSTALL.md`. |
 

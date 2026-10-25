@@ -74,8 +74,23 @@ class Project:
         configs = self.objects[target["buildConfigurationList"]]["buildConfigurations"]
         return {self.objects[c]["name"]: self.objects[c].get("buildSettings", {}) for c in configs}
 
+    def project_build_settings(self):
+        """Project-level settings by configuration name. XcodeGen writes the deployment target here, not on the target."""
+        project_obj = next(iter(self.of_type("PBXProject").values()))
+        configs = self.objects[project_obj["buildConfigurationList"]]["buildConfigurations"]
+        return {self.objects[c]["name"]: self.objects[c].get("buildSettings", {}) for c in configs}
 
-def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict, expected_schemes: list):
+    def effective_settings(self, target):
+        """What Xcode would use: project-level settings, overridden by the target's own."""
+        project_level = self.project_build_settings()
+        merged = {}
+        for name, own in self.build_settings(target).items():
+            merged[name] = {**project_level.get(name, {}), **own}
+        return merged
+
+
+def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict, expected_schemes: list,
+          scheme_detail: str = ""):
     """Returns a list of (description, ok, detail)."""
     results = []
 
@@ -121,7 +136,7 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
     record(f"'{PACKAGE_PRODUCT}' is linked in the Frameworks build phase", linked)
 
     # Build settings
-    settings = project.build_settings(target)
+    settings = project.effective_settings(target)
     for config in ("Debug", "Release"):
         s = settings.get(config, {})
         record(f"{config}: Info.plist is Config/Info.plist", s.get("INFOPLIST_FILE") == "Config/Info.plist",
@@ -150,7 +165,7 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
     record("Signing.xcconfig is attached to the project configurations",
            all("baseConfigurationReference" in project.objects[c] for c in project_configs))
 
-    record("Shared scheme 'CabinDash' was generated", scheme_exists)
+    record("Scheme 'CabinDash' is available to xcodebuild", scheme_exists, scheme_detail)
 
     # Generated Info.plist
     record("Info.plist has a location usage description",
@@ -165,6 +180,30 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
     record("Info.plist has a launch screen colour and a scene manifest",
            "UILaunchScreen" in plist and "UIApplicationSceneManifest" in plist)
     return results
+
+
+def find_scheme(xcodeproj: pathlib.Path):
+    """Returns (found, detail). A shared scheme file is the usual case. If it is not where expected,
+    ask xcodebuild itself, because that is what the build step will do: it also lists schemes Xcode makes automatically."""
+    files = sorted(p.relative_to(xcodeproj).as_posix() for p in xcodeproj.rglob("*.xcscheme"))
+    shared = xcodeproj / "xcshareddata" / "xcschemes" / f"{TARGET}.xcscheme"
+    if shared.exists():
+        return True, "shared scheme file present"
+    listed, problem = [], ""
+    try:
+        import pick_package_scheme
+        result = subprocess.run(["xcodebuild", "-list", "-project", str(xcodeproj), "-json"],
+                                capture_output=True, text=True, timeout=180)
+        if result.returncode == 0:
+            listed = pick_package_scheme.schemes_from(result.stdout)
+        else:
+            problem = "xcodebuild -list failed: " + result.stderr.strip()[:200]
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        problem = f"could not run xcodebuild -list: {error}"
+    found = TARGET in listed
+    detail = (f"no shared scheme file; scheme files on disk: {files or 'none'}; "
+              f"xcodebuild lists: {listed or 'nothing'}" + (f"; {problem}" if problem else ""))
+    return found, detail
 
 
 def catalog_schemes(root: pathlib.Path):
@@ -187,7 +226,7 @@ def main(argv=None) -> int:
 
     if args.json:
         data = json.loads(pathlib.Path(args.json).read_text())
-        scheme_exists = True
+        scheme_exists, scheme_detail = True, "not checked (--json mode)"
     else:
         pbxproj = xcodeproj / "project.pbxproj"
         if not pbxproj.exists():
@@ -201,12 +240,12 @@ def main(argv=None) -> int:
                             title="Generated project")
             return 1
         data = json.loads(converted.stdout)
-        scheme_exists = (xcodeproj / "xcshareddata" / "xcschemes" / f"{TARGET}.xcscheme").exists()
+        scheme_exists, scheme_detail = find_scheme(xcodeproj)
 
     with (root / "Config" / "Info.plist").open("rb") as handle:
         plist = plistlib.load(handle)
 
-    results = check(Project(data), root, scheme_exists, plist, catalog_schemes(root))
+    results = check(Project(data), root, scheme_exists, plist, catalog_schemes(root), scheme_detail)
     failed = [r for r in results if not r[1]]
 
     lines = ["### Generated Xcode project", "", "| Check | Result |", "|---|---|"]
