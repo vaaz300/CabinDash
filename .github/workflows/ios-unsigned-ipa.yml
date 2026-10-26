@@ -44,6 +44,10 @@ jobs:
         run: python3 scripts/ci/verify_generated_project.py
 
       - name: Archive for iOS devices without signing
+        env:
+          # Optional. The Client ID of your Spotify app (a public identifier, not a secret). Set it under
+          # Settings > Secrets and variables > Actions > Variables. Left empty, the Spotify screen says it is not set up.
+          SPOTIFY_CLIENT_ID: ${{ vars.SPOTIFY_CLIENT_ID }}
         run: |
           xcodebuild archive \
             -project CabinDash.xcodeproj \
@@ -55,6 +59,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
+            SPOTIFY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
             2>&1 | tee ci-artifacts/xcodebuild-archive.log
 
       - name: Summarize archive

@@ -54,7 +54,7 @@ A rented cloud Mac does not change this. It can build, but it cannot connect to 
 
 1. In GitHub: **Actions > Unsigned IPA (manual) > Run workflow**. Run it only after **iOS build** is green.
 2. When it finishes, open the run and download the artifact **cabindash-unsigned-ipa** (a zip with `CabinDash-unsigned.ipa` inside; unzip it).
-3. Install a sideloading tool on your Windows PC (Sideloadly and AltStore are the two best known). Follow that tool's own instructions, since they change; I could not check them. They typically need Apple's own iTunes and iCloud for Windows (downloaded from Apple, not the Microsoft Store versions) and your phone plugged in by USB.
+3. Install a sideloading tool on your Windows PC. **iLoader worked for this project.** Sideloadly's Apple sign-in failed at the two-factor step for the person who tried it first, and AltStore was not tried, so treat both as possible but unproven here. Follow that tool's own instructions, since they change; I could not check them. They typically need Apple's own iTunes and iCloud for Windows (downloaded from Apple, not the Microsoft Store versions) and your phone plugged in by USB.
 4. The tool signs the file using your free Apple ID and installs it.
 5. On the iPhone: **Settings > Privacy & Security > Developer Mode** (turn on, restart), and **Settings > General > VPN & Device Management** to trust your Apple ID if the app will not open.
 6. About a week later the app stops opening. Repeat from step 3 with the same file (no need to rebuild).
@@ -62,7 +62,8 @@ A rented cloud Mac does not change this. It can build, but it cannot connect to 
 Cautions:
 
 * You type your Apple ID into a third-party program. Consider a separate Apple ID made just for this, with two-factor authentication on. That is my advice, not Apple's.
-* The unsigned workflow has never run, and whether a given sideloading tool accepts the file has not been tested. Treat the first attempt as an experiment.
+* The unsigned workflow has run, and the file installed with iLoader on one iPhone. Other tools are untested.
+* If you set the `SPOTIFY_CLIENT_ID` variable (see `docs/SPOTIFY-SETUP.md`), the workflow builds it into the app. It is not a secret, but it only reaches builds made after you set it.
 * Cabin Dash is built without signing in that workflow, so it can only be as good as the unsigned archive. It adds no entitlements, which is why signing it later on your own machine is plausible.
 
 ## Route C: paid membership + TestFlight (signed in the cloud, installs without a cable)

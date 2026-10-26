@@ -59,6 +59,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Cabin Dash uses your location to show your speed, heading and trip distance while you drive. Your location stays on this iPhone.</string>
+	<key>SpotifyClientID</key>
+	<string>$(SPOTIFY_CLIENT_ID)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -71,7 +73,6 @@
 	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
-		<string>UIInterfaceOrientationPortrait</string>
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>

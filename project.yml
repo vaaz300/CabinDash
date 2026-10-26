@@ -40,6 +40,9 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         ENABLE_PREVIEWS: "YES"
+        # The Spotify app's Client ID. It is a public identifier, not a secret, but it is still kept out of the source:
+        # the unsigned-IPA workflow passes it in from the SPOTIFY_CLIENT_ID repository variable. Empty means Spotify is off.
+        SPOTIFY_CLIENT_ID: ""
     info:
       path: Config/Info.plist
       properties:
@@ -50,8 +53,9 @@ targets:
           UIColorName: LaunchBackground
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        SpotifyClientID: $(SPOTIFY_CLIENT_ID)
+        # The CarPlay-style layout is landscape only.
         UISupportedInterfaceOrientations:
-          - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # Every app Cabin Dash looks for must be listed here, or iOS says it is not installed.

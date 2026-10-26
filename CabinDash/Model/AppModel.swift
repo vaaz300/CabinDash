@@ -6,16 +6,12 @@ import UIKit
 
 private let log = Logger(subsystem: "app.cabindash", category: "app")
 
-enum DashTab: String {
-    case apps
-    case drive
-}
-
 /// Everything the screens share: the user's choices, which apps are installed, and what happens on a tap.
 @MainActor @Observable
 final class AppModel {
     var prefs: Preferences
-    var tab: DashTab = .apps
+    /// The screen Cabin Dash is drawing, or nil for the home grid.
+    private(set) var screen: AppScreen?
     var pickerPresented = false
     var settingsPresented = false
     /// Ids of catalog apps whose URL scheme this iPhone answered "yes" to.
@@ -23,6 +19,9 @@ final class AppModel {
 
     let icons: IconStore
     let toast = ToastCenter()
+    let device = DeviceStatus()
+    let spotify = SpotifyModel()
+    let route = RouteModel()
 
     @ObservationIgnored private let defaults: UserDefaults
     private static let prefsKey = "cabin-dash.prefs.v1"
@@ -43,6 +42,11 @@ final class AppModel {
 
     var shelf: [AppEntry] {
         Shelf.compose(installed: installed, preferences: prefs)
+    }
+
+    /// Every tile of the home grid, in order.
+    var homeItems: [HomeItem] {
+        HomeLayout.items(shelf: shelf)
     }
 
     func isOnShelf(_ app: AppEntry) -> Bool {
@@ -74,6 +78,7 @@ final class AppModel {
     /// First launch: find installed apps and start the GPS. Async so it can be awaited from a view's task.
     func startUp(location: LocationModel) async {
         refreshInstalled()
+        device.start()
         location.start()
     }
 
@@ -99,7 +104,16 @@ final class AppModel {
     // MARK: Icons
 
     func syncIcons() async {
-        await icons.sync(shelf)
+        await icons.sync(iconTargets)
+    }
+
+    /// The shelf, plus the artwork the Maps tile borrows from Apple Maps.
+    private var iconTargets: [AppEntry] {
+        var apps = shelf
+        if let artwork = HomeLayout.builtIn["maps"]?.artwork, !apps.contains(where: { $0.id == artwork.id }) {
+            apps.append(artwork)
+        }
+        return apps
     }
 
     /// Pull to refresh: look for installed apps again, then fetch any missing icons.
@@ -110,10 +124,37 @@ final class AppModel {
 
     func refreshIcons() async {
         await icons.reset()
-        await icons.sync(shelf)
+        await icons.sync(iconTargets)
     }
 
     // MARK: Opening things
+
+    /// What a tap on a tile or a rail icon does.
+    func open(_ item: HomeItem) {
+        switch item.kind {
+        case .screen(let target):
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            prefs.noteRecent(item.id)
+            show(target)
+        case .url(let url):
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            prefs.noteRecent(item.id)
+            open([url], failure: "Couldn't open \(item.title)")
+        case .settings:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            settingsPresented = true
+        case .addApps:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            pickerPresented = true
+        case .app(let app):
+            launch(app)
+        }
+    }
+
+    /// Shows one of Cabin Dash's own screens, or the home grid for nil.
+    func show(_ target: AppScreen?) {
+        screen = target
+    }
 
     func launch(_ app: AppEntry) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -131,6 +172,14 @@ final class AppModel {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         let installedApp = prefs.navApp.scheme.map { canOpen(scheme: $0) } ?? false
         guard let url = prefs.navApp.directionsURL(to: place.address, appInstalled: installedApp) else { return }
+        open([url], failure: "Couldn't start directions")
+    }
+
+    /// Hands the route to the chosen navigation app (Google Maps by default is a setting), already pointed at the destination.
+    func navigate(toLatitude latitude: Double, longitude: Double) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        let installedApp = prefs.navApp.scheme.map { canOpen(scheme: $0) } ?? false
+        guard let url = prefs.navApp.directionsURL(toLatitude: latitude, longitude: longitude, appInstalled: installedApp) else { return }
         open([url], failure: "Couldn't start directions")
     }
 

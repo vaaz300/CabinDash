@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
+import CabinCore
 
-/// Wallpaper, the two screens, the dock and the sheets. Switches to a side dock when the phone is turned.
+/// The whole screen: a wallpaper, one of the screens (the home grid, Maps, Now Playing or Drive), the rail down the left edge, and the sheets.
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(LocationModel.self) private var location
@@ -10,27 +11,32 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
 
-        GeometryReader { proxy in
-            let landscape = proxy.size.width > proxy.size.height * 1.25
+        ZStack(alignment: .leading) {
+            RibbonWallpaper(wallpaper: model.prefs.wallpaper)
+                .ignoresSafeArea()
+
+            // The home grid stays alive underneath, so it is on the same page when you come back to it.
             ZStack {
-                WallpaperView(wallpaper: model.prefs.wallpaper)
-                    .ignoresSafeArea()
-                if landscape {
-                    HStack(spacing: 12) {
-                        DockBar(landscape: true)
-                        screens(landscape: true)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
-                } else {
-                    VStack(spacing: 10) {
-                        screens(landscape: false)
-                        DockBar(landscape: false)
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 6)
+                HomeGrid()
+                    .padding(.leading, CarLayout.railReserve)
+                    .padding(.trailing, CarLayout.edge)
+                    .opacity(model.screen == nil ? 1 : 0)
+                    .allowsHitTesting(model.screen == nil)
+                    .accessibilityHidden(model.screen != nil)
+                if let screen = model.screen {
+                    screenView(screen)
+                        .transition(.opacity)
                 }
             }
+            .animation(.easeOut(duration: 0.2), value: model.screen)
+
+            StatusRail()
+                .padding(.leading, CarLayout.edge)
+                .padding(.vertical, CarLayout.edge)
+        }
+        .overlay(alignment: .bottom) {
+            ToastOverlay()
+                .padding(.bottom, 10)
         }
         .sheet(isPresented: $model.pickerPresented) {
             PickerSheet()
@@ -44,6 +50,7 @@ struct RootView: View {
         // @Sendable, and a local variable should not be captured by one.
         .task {
             await self.model.startUp(location: self.location)
+            self.model.spotify.setActive(self.scenePhase == .active)
         }
         .task(id: model.shelf.map(\.id)) {
             await self.model.syncIcons()
@@ -53,39 +60,51 @@ struct RootView: View {
             case .active:
                 model.refreshInstalled()
                 location.start()
-                UIApplication.shared.isIdleTimerDisabled = model.prefs.keepAwake
+                model.spotify.setActive(true)
+                applyIdleTimer()
             case .inactive:
                 location.saveTrip()
             case .background:
                 location.stop()
+                model.spotify.setActive(false)
             @unknown default:
                 break
             }
         }
+        .onChange(of: location.fixCount) { _, _ in
+            if let latitude = location.latitude, let longitude = location.longitude {
+                model.route.update(latitude: latitude, longitude: longitude)
+            }
+        }
+        .onChange(of: model.screen) { _, screen in
+            model.spotify.setFast(screen == .nowPlaying)
+        }
         .onChange(of: model.prefs) { _, _ in
             model.savePreferences()
         }
-        .onChange(of: model.prefs.keepAwake, initial: true) { _, keepAwake in
-            UIApplication.shared.isIdleTimerDisabled = keepAwake
+        .onChange(of: model.prefs.keepAwake, initial: true) { _, _ in
+            applyIdleTimer()
+        }
+        .onChange(of: model.route.phase) { _, _ in
+            applyIdleTimer()
         }
     }
 
-    /// Both screens stay alive so the app grid keeps its scroll position while Drive is showing.
-    private func screens(landscape: Bool) -> some View {
-        ZStack {
-            AppsView(landscape: landscape)
-                .opacity(model.tab == .apps ? 1 : 0)
-                .allowsHitTesting(model.tab == .apps)
-                .accessibilityHidden(model.tab != .apps)
-            DriveView(landscape: landscape)
-                .opacity(model.tab == .drive ? 1 : 0)
-                .allowsHitTesting(model.tab == .drive)
-                .accessibilityHidden(model.tab != .drive)
+    @ViewBuilder
+    private func screenView(_ screen: AppScreen) -> some View {
+        switch screen {
+        case .maps:
+            MapScreen()
+        case .nowPlaying:
+            NowPlayingScreen()
+        case .drive:
+            DriveView(landscape: true)
+                .padding(.leading, CarLayout.railReserve)
         }
-        .animation(.easeOut(duration: 0.2), value: model.tab)
-        .overlay(alignment: .bottom) {
-            ToastOverlay()
-                .padding(.bottom, 8)
-        }
+    }
+
+    /// The screen stays on while the setting says so, and always while a route is being followed.
+    private func applyIdleTimer() {
+        UIApplication.shared.isIdleTimerDisabled = model.prefs.keepAwake || model.route.phase == .guiding
     }
 }

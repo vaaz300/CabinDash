@@ -2,10 +2,11 @@
 
 A CarPlay-style dashboard that runs on the iPhone's own screen, so it works in a car with no CarPlay and no Wi-Fi hotspot. Put the phone in a mount, plug it in, and open it.
 
-- **Apps.** Shows the apps it finds on your iPhone, grouped like CarPlay (navigation, music, podcasts, messages, charging, assistants), with each app's App Store icon. Tap one to open it.
+- **Home.** A CarPlay-style home screen: a frosted rail down the left edge (clock, connection, battery, the apps you used last, a home button) and a paged four-by-two grid of icons with a ribbon wallpaper. Landscape only.
+- **Maps.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
+- **Now Playing.** Shows what the Spotify app is playing and controls it. Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`.
+- **Other apps.** Shows the apps it finds on your iPhone, with each app's App Store icon. Tap one to open it. iOS does not allow another app's screen inside Cabin Dash, so Google Maps and Spotify open as the real apps.
 - **Drive.** Live speed dial, heading, trip distance, trip time and average speed from the iPhone's GPS.
-- **Places.** Home, work and other saved places. One tap starts directions in Apple Maps, Google Maps or Waze.
-- **Look.** Six wallpapers, day, night or automatic, landscape layout with a side dock.
 
 This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud Mac" does the building.
 
@@ -13,12 +14,14 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 
 | | Status |
 |---|---|
-| Swift code compiles | **Yes, for the iOS Simulator.** The cloud build compiled it on GitHub's macOS runner (Xcode 26.5) and went green on 25 Oct 2026, after one fix to the project checker. |
-| 98 unit tests pass | **Reported passing** by the cloud build, on the Mac and on the simulator. Its test-count step fails the run if fewer than the 98 declared tests executed. Exact counts and warnings are on the run's summary page, not recorded here. |
-| App starts | The launch step saw the app still running 12 seconds after launch on a simulator. Its screenshot has not been reviewed yet. |
-| Helper scripts used by the build | 34 tests pass here, on sample data. The first real run exposed one bug in the project checker (fixed). The simulator picker and test-count checks have since passed on real output; the error-summary helpers have not been looked at yet. |
+| Swift code compiles | **The CarPlay-style rebuild has not been built yet.** The version before it compiled and passed on GitHub's macOS runner (Xcode 26.5) on 25 Oct 2026. Everything added since (home grid, rail, Maps, Now Playing, Spotify sign-in) has been checked by reading only, with no Swift compiler. Expect the first run to show some compile errors. |
+| Unit tests | **Not run on the new code.** There are now 164 `@Test` functions declared, 66 of them new since the last green build. The build's test-count step fails the run if fewer than the declared number executed. |
+| App starts | Not known for the new version. The launch step checks the app is still running 12 seconds after launch on a simulator. |
+| Helper scripts used by the build | Tested here on sample data. They have run for real once, on the previous version. |
 | URL-scheme list matches the app catalogue | Checked by script: yes (37 apps, 30 schemes). |
-| App installed on an iPhone | No. See `docs/DEVICE-INSTALL.md`. |
+| App installed on an iPhone | The previous version was installed with iLoader. The new one has not been. |
+| Look matches CarPlay | **Not seen on a screen.** The layout was written from your two screenshots. Nobody has looked at it running, not even in a simulator. Send a screenshot and it will be adjusted. |
+| Spotify and Maps behaviour | **Untested.** Both need a real phone, and Spotify needs your own developer app. |
 
 Nothing in this repository claims a build or test passed unless the cloud build says so. A green simulator build does not mean the app works on a real iPhone: signing, real GPS, and detection of your real apps are still untested.
 
@@ -75,7 +78,7 @@ What it does, in order. Each line is its own row in the results, so you can see 
 6. Runs the `CabinCore` unit tests on the Mac (`swift test`).
 7. **Builds the app for the iOS Simulator, without any signing.**
 8. Runs the unit tests again on the iOS Simulator.
-9. Counts the tests that ran. A run where no tests executed, or fewer than the 98 declared in the source, is a **failure**, not a pass.
+9. Counts the tests that ran. A run where no tests executed, or fewer than the number declared with `@Test` in the source, is a **failure**, not a pass.
 10. Launches the app on the simulator, waits 12 seconds, checks it is still running, and saves a screenshot.
 11. Uploads everything as downloads, and writes a results table.
 
@@ -88,7 +91,7 @@ Open the run (Actions > click the run at the top of the list).
 * **Red cross or green tick** next to the run name. Green means every row below was `success`.
 * **Annotations** at the top list errors, each with a file and line number when Xcode gave one.
 * **The summary** (scroll down on the same page) shows, in this order: tool versions, what the generated project check found, the test counts, a block called **App build** with the compiler's errors, and a **results table** with one row per step.
-* **Artifacts** at the bottom: `ios-build-results-<number>`. Download and unzip it. It holds the full logs (`xcodebuild-build.log` is the one to open for compile errors), `…-errors.txt` files with just the errors, the `.xcresult` bundles (Xcode-only; you cannot open these on Windows, so use the logs), and `launch-portrait.png`, a screenshot of the app running on the simulator.
+* **Artifacts** at the bottom: `ios-build-results-<number>`. Download and unzip it. It holds the full logs (`xcodebuild-build.log` is the one to open for compile errors), `…-errors.txt` files with just the errors, the `.xcresult` bundles (Xcode-only; you cannot open these on Windows, so use the logs), and `launch.png`, a screenshot of the app running on the simulator.
 * To see a single step's full output, click the job name (**Build and test (iOS Simulator)**) on the left and expand the step.
 
 If it is red, copy the **App build** block (or the failing step's output) and give it to Claude along with the name of the step. That is all Claude needs to propose a fix.
@@ -107,7 +110,7 @@ Changes to only `.md` files or `docs/` do not start a build; use **Run workflow*
 
 A green simulator build shows that the code compiles and the tests pass. It does not show the app can be installed, signed, or that GPS and app detection work on a real phone. The choices are laid out in **`docs/DEVICE-INSTALL.md`**:
 
-* **Free, no Mac:** run the manual **Unsigned IPA** workflow, then sign it on your PC with a tool such as Sideloadly or AltStore using a free Apple ID. It stops opening after about 7 days.
+* **Free, no Mac:** run the manual **Unsigned IPA** workflow, then sign it on your PC with a sideloading tool (iLoader worked for this project; Sideloadly and AltStore are others) using a free Apple ID. It stops opening after about 7 days.
 * **About US$99 a year, no Mac, no cable:** the paid Apple Developer Program plus TestFlight. The **Device build to TestFlight** workflow is switched off until you add your own secrets in GitHub's settings.
 
 No Apple password, private key or certificate ever goes in the repository. The build stops if it finds one.
@@ -152,7 +155,13 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 **Opening apps.** Tapping tries the app's own link first, then its website, then its App Store page. If all three fail, a message says so.
 
-**Speed and trip.** From Core Location, only while the app is on screen. Standing still, poor readings and sudden jumps are ignored. The screen stays on while the app is open (switch off in Settings), so keep the phone plugged in. Turning off "Precise Location" for the app currently breaks speed and distance without a message; see `docs/IOS-LIMITS.md`.
+**Home and the rail.** The grid starts with Phone, Spotify, Maps, Messages, Now Playing, Google Maps, Drive and Settings, then your other apps, then Add Apps. The rail shows the apps you opened last (three or four, depending on the screen height). Phone and Messages open the iPhone's own apps. Phone's link has not been tried, and iOS shows no unread badges to other apps, so there are none. The rail shows Wi-Fi or cellular and the battery, but iOS gives apps no signal-strength reading, so there are no signal bars.
+
+**Maps.** The map and the directions come from Apple Maps (MapKit), because iOS cannot put Google Maps inside another app. Turn-by-turn here is simple: it shows the next instruction and counts down the straight-line distance to it, and it moves on when you pass it. It does not speak, does not reroute by itself (there is a Reroute button), and stops updating when the screen is off or the app is in the background. For real navigation use **Open in Google Maps**, which starts the trip in the Google Maps app (set "Directions with" to Google Maps in Settings).
+
+**Now Playing.** See `docs/SPOTIFY-SETUP.md`.
+
+**Speed and trip.** From Core Location, only while the app is on screen. Standing still, poor readings and sudden jumps are ignored. The screen stays on while the app is open (switch off in Settings) and always while a route is being followed, so keep the phone plugged in. Turning off "Precise Location" for the app currently breaks speed and distance without a message; see `docs/IOS-LIMITS.md`.
 
 ## Changing the app list
 
@@ -183,16 +192,17 @@ CABIN_BUNDLE_ID = com.yourname.cabindash
 .github/actions/setup-ios-toolchain/     Pins Xcode and XcodeGen for all three
 project.yml            Xcode project recipe (XcodeGen)
 Config/Signing.xcconfig  Signing defaults; nothing secret (personal values go in a git-ignored local file)
-Config/Info.plist      Location text, app links, orientations (XcodeGen rewrites it)
-CabinCore/             Logic with no UI: catalogue, App Store matching, shelf rules, trip maths, preferences, tests
+Config/Info.plist      Location text, app links, orientations, Spotify Client ID slot (XcodeGen rewrites it)
+CabinCore/             Logic with no UI: catalogue, App Store matching, shelf and home-grid rules, trip maths, route guidance, Spotify sign-in and parsing, preferences, tests
 CabinDash/             Model, Views, Support: the app itself
 scripts/ci/            Helpers the cloud build runs, and their tests
 scripts/check_schemes.py, swift_sanity.py, make_icon.py
 docs/AUDIT.md          What was checked and changed before the first build
 docs/IOS-LIMITS.md     What iOS allows and how the app copes
 docs/DEVICE-INSTALL.md Signing, secrets, and getting the app on a phone
+docs/SPOTIFY-SETUP.md  Making the Spotify developer app and connecting it
 ```
 
 ## Not CarPlay
 
-Real CarPlay on the phone screen is not possible: Apple only lets CarPlay run on a car's display through certified hardware. Cabin Dash copies how it looks and works, and uses only public iOS features.
+Real CarPlay on the phone screen is not possible: Apple only lets CarPlay run on a car's display through certified hardware. Cabin Dash copies how it looks and works, and uses only public iOS features. It uses no Apple artwork or wallpapers: the ribbons and tiles are drawn in code, and app icons are fetched from the App Store at runtime.

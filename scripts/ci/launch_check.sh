@@ -35,7 +35,7 @@ xcrun simctl launch "$SIM_UDID" "$bundle_id" | tee "$out/launch.txt"
 sleep 12
 
 # The screenshot is taken before the verdict so there is always something to look at.
-xcrun simctl io "$SIM_UDID" screenshot "$out/launch-portrait.png" || echo "Could not take a screenshot."
+xcrun simctl io "$SIM_UDID" screenshot "$out/launch.png" || echo "Could not take a screenshot."
 
 # Read the list into a variable first. Piping straight into `grep -q` can end the pipe early, and with
 # `pipefail` that is reported as a failure even when the app was found.
@@ -43,7 +43,7 @@ running_list=$(xcrun simctl spawn "$SIM_UDID" launchctl list 2>&1 || true)
 printf '%s\n' "$running_list" > "$out/launchctl-list.txt"
 
 if ! grep -q "UIKitApplication:$bundle_id" <<<"$running_list"; then
-  echo "::error title=Launch check::Cabin Dash was not in the simulator's process list 12 seconds after launch. It most likely crashed on start. See launch-portrait.png and launchctl-list.txt in the artifacts."
+  echo "::error title=Launch check::Cabin Dash was not in the simulator's process list 12 seconds after launch. It most likely crashed on start. See launch.png and launchctl-list.txt in the artifacts."
   crash_dir="$HOME/Library/Logs/DiagnosticReports"
   if ls "$crash_dir"/CabinDash* >/dev/null 2>&1; then
     mkdir -p "$out/crash-reports"
@@ -55,4 +55,4 @@ if ! grep -q "UIKitApplication:$bundle_id" <<<"$running_list"; then
   exit 1
 fi
 
-echo "Cabin Dash was still running after 12 seconds. Screenshot saved to $out/launch-portrait.png"
+echo "Cabin Dash was still running after 12 seconds. Screenshot saved to $out/launch.png"

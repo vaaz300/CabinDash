@@ -8,6 +8,29 @@ enum Theme {
     static let good = Color(light: 0x248A3D, dark: 0x30D158)
     static let bad = Color(light: 0xD70015, dark: 0xFF453A)
     static let base = Color(light: 0xEEF0F6, dark: 0x05060B)
+    /// The drawn route on the map.
+    static let route = Color(light: 0x0A5CFF, dark: 0x4C9AFF)
+}
+
+/// Sizes shared by the rail and the screens beside it, so nothing is hidden under the rail.
+enum CarLayout {
+    static let railWidth: CGFloat = 82
+    static let edge: CGFloat = 8
+    /// Space a screen leaves on its left for the rail.
+    static var railReserve: CGFloat { railWidth + edge * 2 }
+}
+
+extension HomeTone {
+    var color: Color {
+        switch self {
+        case .green: return Color(hex: 0x30D158)
+        case .blue: return Color(hex: 0x0A84FF)
+        case .red: return Color(hex: 0xFF453A)
+        case .orange: return Color(hex: 0xFF9F0A)
+        case .purple: return Color(hex: 0xBF5AF2)
+        case .graphite: return Color(hex: 0x98989D)
+        }
+    }
 }
 
 extension Color {
@@ -79,6 +102,32 @@ struct GlassBackground: ViewModifier {
 extension View {
     func glass(radius: CGFloat = 22) -> some View {
         modifier(GlassBackground(radius: radius))
+    }
+
+    /// The tall frosted bar on the left edge, with a bright rim along the top like glass catching light.
+    func railGlass(radius: CGFloat = 30) -> some View {
+        modifier(RailBackground(radius: radius))
+    }
+}
+
+struct RailBackground: ViewModifier {
+    let radius: CGFloat
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.42), Color.white.opacity(0.06)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .shadow(color: .black.opacity(0.22), radius: 14, y: 4)
     }
 }
 

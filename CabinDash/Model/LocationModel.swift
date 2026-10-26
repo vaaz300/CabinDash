@@ -47,6 +47,11 @@ final class LocationModel {
     private(set) var heading: Double = 0
     private(set) var hasHeading = false
     private(set) var hasFix = false
+    /// The last position reported, kept after the signal drops so a search can still be centred near the car.
+    private(set) var latitude: Double?
+    private(set) var longitude: Double?
+    /// Goes up by one with every accepted fix, so a screen can react to each new position.
+    private(set) var fixCount = 0
     private(set) var trip: TripTracker
 
     @ObservationIgnored private let manager = CLLocationManager()
@@ -178,6 +183,9 @@ final class LocationModel {
             speed = estimate < Self.movingThreshold ? 0 : estimate
             hasFix = true
             lastFixAt = Date()
+            latitude = fix.latitude
+            longitude = fix.longitude
+            fixCount += 1
 
             if let course = fix.course, estimate >= Self.courseThreshold {
                 heading = hasHeading ? Compass.unwrap(previous: heading, next: course) : course

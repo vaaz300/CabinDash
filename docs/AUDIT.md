@@ -1,5 +1,7 @@
 # Audit before the first cloud build
 
+> **Written for the first version.** The CarPlay-style rebuild (home grid, rail, Maps, Now Playing, Spotify) came after this audit and has had no compiler run on it yet; see the "CarPlay-style rebuild" section at the end.
+
 This is what was checked in the existing project before any build was set up, what was changed, and what was left alone on purpose.
 
 **The important sentence (as written before the first build):** every Swift file was read by hand, and no definite compile error was found. That was not evidence the app compiles, because no Swift compiler had ever run on this code.
@@ -45,7 +47,7 @@ Not changed, deliberately: the design, the features, the deployment target (iOS 
 * **Entitlements.** None are needed and none exist: no push, no CarPlay entitlement, no app groups, no background modes.
 * **Deployment target.** `project.yml` and `CabinCore/Package.swift` both say iOS 17 (the package also says macOS 14 so `swift test` can run on a Mac). The APIs in use (`@Observable`, the two-parameter `onChange`, `AccessibilityNotification`) need iOS 17.
 * **Assets.** The 1024 px app icon has no transparency; `AccentColor` and `LaunchBackground` exist under the names `project.yml` refers to.
-* **Tests.** 98 `@Test` functions, all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
+* **Tests.** 98 `@Test` functions (at the time of the audit; 164 now), all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
 
 ## Open risks (documented, not "fixed")
 
@@ -57,6 +59,20 @@ These cannot be settled without a compiler or a phone. Changing code to avoid th
 4. **Six URL schemes are best guesses:** SiriusXM, iHeartRadio, TuneIn, SpotHero, ChatGPT and Claude (marked in `Catalog.swift`). A wrong guess means that app is not auto-detected and opens its web or App Store page instead.
 5. **App Store ids in the catalogue were not re-verified.** The App Store lookup service cannot be reached from the build environment I used. At runtime the app checks every icon result against the app's name, so a wrong id cannot put the wrong *icon* on a tile. It can, though, make the *fallback* link (used when an app is not installed and has no website) open the wrong App Store page. Look at any app that opens something unexpected.
 6. **Reduced-accuracy location is not handled.** If you turn off "Precise Location" for Cabin Dash, iOS gives approximate positions only. The trip tracker rejects readings coarser than 40 m, so speed and distance will not work, and nothing on screen says why. See `docs/IOS-LIMITS.md`.
-7. **Landscape and the side dock were reviewed in code only.** No screenshot has been taken of it.
+7. **The layout was reviewed in code only.** No screenshot has been taken of it, and the app is now landscape only.
 8. **Workflow actions are pinned to major versions (`@v4`), not to commit hashes.** I could not look up hashes from the build environment. Pinning to hashes is the stricter option if you ever make this repository more than personal. If GitHub starts warning that these versions are outdated, move them to the newer major versions after checking they exist.
 9. **The CI helper scripts parse real Xcode output** (log lines, result bundles, the generated project file, simulator listings). They were tested only against hand-written examples of that output. If a format differs, a helper may report something odd; the underlying `xcodebuild` log is always uploaded unedited so nothing is hidden.
+
+## CarPlay-style rebuild (not yet compiled)
+
+Added after the audit above: `HomeLayout`, `Spotify`, `SpotifyAuth` and `RouteGuide` in `CabinCore` (pure logic, 66 new tests), and in the app a `Shell` (ribbon wallpaper, home grid, status rail), `Maps` (map screen, search sheet), `Music` (Now Playing), plus `SpotifyModel`, `SpotifyAuthenticator`, `KeychainStore`, `RouteModel` and `DeviceStatus`. `AppsView`, `DockBar` and `WallpaperView` were removed. The app became landscape only, and `Info.plist` gained a `SpotifyClientID` entry fed from a build setting.
+
+**Checked by hand, with no Swift compiler available** (swift.org, PyPI and npm were all unreachable from the build environment):
+
+* The expected values in the new tests were worked out independently, several with Python (distances, the RFC 7636 PKCE example, base64url).
+* New app code was reread for the usual first-build failures: missing imports, `@Sendable` closures capturing the local `@Bindable`, MapKit signatures (the `MapStyle.standard` one was checked against Apple's documentation), and actor isolation.
+* The repository's own checks and their tests were run locally: `check_repo.py`, `check_schemes.py`, the CI helper tests.
+
+**Not checked, and likely to show up on the first run:** compile errors in the new views and models, Swift Testing macro problems in the new tests, and anything about how it looks or behaves. The cloud build's "App build" block is the way to find out.
+
+**Choices worth knowing about:** the Spotify Client ID is a build setting, not source, and is passed in from the `SPOTIFY_CLIENT_ID` repository variable by the unsigned-IPA workflow only. No Spotify secret is used (the sign-in is PKCE, which needs none). The screenshot the launch check saves is now `launch.png` (it was `launch-portrait.png`).

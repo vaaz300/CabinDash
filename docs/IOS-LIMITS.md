@@ -48,7 +48,7 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 | Situation | What the code does |
 |---|---|
 | First launch | Asks for "While Using the App" permission once. No "Always" request. |
-| **Permission denied or restricted** | No crash. The Drive screen shows a card explaining that location is off, with a button that opens iOS Settings. The Apps screen keeps working. |
+| **Permission denied or restricted** | No crash. The Drive screen shows a card explaining that location is off, with a button that opens iOS Settings. The home screen keeps working. |
 | Location turned on later in Settings | Picked up the next time the app comes back to the screen. |
 | Position readings with a negative accuracy, or older than 15 seconds | Ignored. |
 | Poor accuracy (worse than 40 m) | The speed iOS reports is still shown, but the reading is not added to trip distance or trip time. |
@@ -67,14 +67,34 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 
 ## 5. Keep the screen on
 
-`Keep screen on` (default on) sets iOS's idle timer to off while the app is on screen, which stops auto-lock and screen dimming. It is applied when the app returns to the screen and when you change the setting. It only works while Cabin Dash is the app in front; after you leave, iOS goes back to normal. It drains the battery noticeably, so a charging cable is the practical way to use it in a car. Low Power Mode and Screen Time limits were not tested.
+`Keep screen on` (default on) sets iOS's idle timer to off while the app is on screen, which stops auto-lock and screen dimming. While a route is being followed on the Maps screen the screen also stays on, whatever that setting says. It is applied when the app returns to the screen and when you change the setting. It only works while Cabin Dash is the app in front; after you leave, iOS goes back to normal. It drains the battery noticeably, so a charging cable is the practical way to use it in a car. Low Power Mode and Screen Time limits were not tested.
 
-## 6. Landscape and the dock
+## 6. The CarPlay-style layout
 
-Portrait puts the dock along the bottom; landscape (screen wider than 1.25× its height) moves it to a 92 pt column on the left. Both landscape directions are enabled, and upside-down is not (normal for iPhones). The content stays inside the safe area, so the Dynamic Island and the rounded corners should not cover it.
+The app is **landscape only** (both directions; upside-down is not offered, which is normal for iPhones). A frosted rail runs down the left edge: the time, Wi-Fi or cellular, a GPS dot, the battery, the apps you opened last (as many as fit, up to four), and a home button. The rest is the screen you are on: a paged four-by-two icon grid, Maps, Now Playing or Drive. Content stays inside the safe area, so the Dynamic Island and rounded corners should not cover it. The Maps screen is the one exception: the map itself runs under them.
 
-**This has not been looked at on a real screen or simulator.** The cloud build saves a portrait screenshot after launching (`launch-portrait.png`), but nothing rotates the simulator. The first time you run the app on a phone, turn it sideways and check: the dock column, the two Drive gauges, and the app grid on a small iPhone (SE-sized screens are the likely problem).
+What it cannot copy from CarPlay:
+
+* **No unread badges.** iOS gives an app no way to read another app's badge count, so Phone and Messages have none.
+* **No signal bars.** iOS does not report cellular signal strength to apps. The rail shows whether the phone is on Wi-Fi, cellular or offline, and nothing it cannot know.
+* **Apple's artwork.** Apple's icons for Phone, Messages, Music and the like are not on the App Store, and the wallpapers are Apple's. Those tiles and the ribbon wallpaper are original drawings in the same spirit. Icons of apps that are on the App Store (Spotify, Google Maps, Waze and so on) are fetched from it at runtime, as before.
+* **Other apps' screens.** iOS has no way to show another app's screen or its live content inside Cabin Dash. Tapping Spotify or Google Maps opens that app and leaves Cabin Dash. That is why Maps and Now Playing are separate screens that Cabin Dash draws itself.
+* **Phone and Messages tiles.** They open `tel://` and `sms://`. Messages is a well-known link. Phone's bare `tel://` has not been tried and might do nothing on some iOS versions; if it fails, a message says "Couldn't open Phone".
+
+**None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the rail spacing on a small iPhone (SE-sized screens are the likely problem), the label pills under the icons, and the page dots.
+
+## 6a. The Maps screen
+
+* **The map is Apple Maps**, drawn by MapKit, with traffic on. **It is not Google Maps.** Google's own app cannot be embedded; there is a Google Maps SDK that could draw Google's map tiles inside Cabin Dash, but it needs a Google Cloud account with billing enabled and an API key, and its turn-by-turn product is not available to individuals. It has not been added.
+* **Search and routes** use Apple Maps' search and directions (`MKLocalSearch`, `MKDirections`). The text you search for and the address of a saved place are sent to Apple to do that. Needs internet.
+* **Turn-by-turn is basic.** The card shows the next instruction from Apple's route, and counts down the straight-line distance (not road distance, so it reads a little short on bends) to the point where that instruction applies. It advances when the phone is within 45 metres of that point. It never speaks. It does not reroute on its own: if you leave the route, tap **Reroute**. In a tunnel or with a poor GPS signal the card may lag or skip.
+* **It only updates while Cabin Dash is on screen.** The app has no background-location permission, on purpose. Switch to another app and the card stops until you come back.
+* **Open in Google Maps / Waze / Apple Maps** passes the destination's coordinates to the app chosen under Settings > Directions with. Google Maps and Waze use their own link when installed and their website otherwise. The coordinates come from Apple's search result, so the pin may differ slightly from what Google would pick for the same name.
+
+## 6b. Spotify
+
+See `docs/SPOTIFY-SETUP.md`. In short: Cabin Dash reads and steers the Spotify app through Spotify's Web API. It needs Premium and your own Spotify developer app. It cannot browse your library, cannot play audio, and cannot control Spotify when no Spotify device is active. Progress is read every few seconds and moved forward locally in between, so the bar can be a second or two off.
 
 ## 7. What a simulator build cannot show
 
-The GitHub build runs on a simulator with a pretend location. It cannot show: real GPS speed, how installed-app detection behaves when real apps are present (a simulator has no Spotify), whether the guessed link types are right, or anything about signing and installing. Those can only be checked on your iPhone.
+The GitHub build runs on a simulator with a pretend location. It cannot show: real GPS speed, how installed-app detection behaves when real apps are present (a simulator has no Spotify or Google Maps), whether the guessed link types are right, or anything about signing and installing. Those can only be checked on your iPhone.

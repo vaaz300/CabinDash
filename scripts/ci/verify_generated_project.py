@@ -173,10 +173,11 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
     record("Info.plist LSApplicationQueriesSchemes matches Catalog.swift",
            list(plist.get("LSApplicationQueriesSchemes", [])) == expected_schemes,
            f"plist has {len(plist.get('LSApplicationQueriesSchemes', []))}, catalog has {len(expected_schemes)}")
-    record("Info.plist declares portrait and both landscape orientations",
-           set(plist.get("UISupportedInterfaceOrientations", [])) >= {
-               "UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft",
-               "UIInterfaceOrientationLandscapeRight"})
+    record("Info.plist declares both landscape orientations and no portrait",
+           set(plist.get("UISupportedInterfaceOrientations", [])) == {
+               "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"})
+    record("Info.plist has a SpotifyClientID entry that comes from a build setting",
+           plist.get("SpotifyClientID") == "$(SPOTIFY_CLIENT_ID)")
     record("Info.plist has a launch screen colour and a scene manifest",
            "UILaunchScreen" in plist and "UIApplicationSceneManifest" in plist)
     return results

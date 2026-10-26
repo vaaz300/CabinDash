@@ -14,6 +14,13 @@ struct SettingsSheet: View {
         return "\(short) (\(build))"
     }
 
+    private var spotifyFooter: String {
+        if model.spotify.phase == .notConfigured {
+            return "This copy of Cabin Dash was built without a Spotify Client ID, so the Now Playing screen can't connect. See docs/SPOTIFY-SETUP.md in the repository."
+        }
+        return "Needs a Spotify Premium account. Cabin Dash shows what the Spotify app is playing and sends play, pause and skip. Spotify keeps playing in its own app."
+    }
+
     var body: some View {
         @Bindable var model = model
 
@@ -35,7 +42,33 @@ struct SettingsSheet: View {
                 } header: {
                     Text("Driving")
                 } footer: {
-                    Text("Tapping a place opens directions in this maps app. Google Maps and Waze use their website if they aren't installed.")
+                    Text("The Maps screen plans routes with Apple Maps. \u{201C}Open in\u{2026}\u{201D} hands the trip to this app, which does the real turn-by-turn. Google Maps and Waze use their website if they aren't installed.")
+                }
+
+                Section {
+                    LabeledContent("Status", value: model.spotify.statusText)
+                    switch model.spotify.phase {
+                    case .notConfigured:
+                        EmptyView()
+                    case .signedOut:
+                        Button("Connect Spotify") {
+                            Task { await self.model.spotify.signIn() }
+                        }
+                    case .signingIn:
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Waiting for Spotify\u{2026}")
+                                .foregroundStyle(.secondary)
+                        }
+                    case .signedIn:
+                        Button("Disconnect Spotify", role: .destructive) {
+                            model.spotify.signOut()
+                        }
+                    }
+                } header: {
+                    Text("Spotify")
+                } footer: {
+                    Text(spotifyFooter)
                 }
 
                 Section {
@@ -90,7 +123,7 @@ struct SettingsSheet: View {
                 } header: {
                     Text("Places")
                 } footer: {
-                    Text("Tap a place on the Apps screen to start directions. Addresses stay on this iPhone.")
+                    Text("Saved places appear on the Maps screen for one-tap routes. Planning a route sends the address to Apple Maps.")
                 }
 
                 Section {
@@ -98,7 +131,7 @@ struct SettingsSheet: View {
                 } header: {
                     Text("About")
                 } footer: {
-                    Text("Cabin Dash is not CarPlay. It's a dashboard that runs on the iPhone's own screen, so it works in any car.")
+                    Text("Cabin Dash is not CarPlay. It's a CarPlay-style dashboard that runs on the iPhone's own screen, so it works in any car. iOS doesn't let it show other apps' screens, so Google Maps and Spotify open as their own apps.")
                 }
             }
             .navigationTitle("Settings")

@@ -94,6 +94,21 @@ public enum NavApp: String, Codable, CaseIterable, Hashable, Sendable {
             return URL(string: "https://waze.com/ul?q=\(q)&navigate=yes")
         }
     }
+
+    /// Directions to a point on the map. Same rules as the address version.
+    public func directionsURL(toLatitude latitude: Double, longitude: Double, appInstalled: Bool) -> URL? {
+        let point = String(format: "%.6f,%.6f", latitude, longitude)
+        switch self {
+        case .apple:
+            return URL(string: "https://maps.apple.com/?daddr=\(point)&dirflg=d")
+        case .google:
+            if appInstalled { return URL(string: "comgooglemaps://?daddr=\(point)&directionsmode=driving") }
+            return URL(string: "https://www.google.com/maps/dir/?api=1&destination=\(point)&travelmode=driving")
+        case .waze:
+            if appInstalled { return URL(string: "waze://?ll=\(point)&navigate=yes") }
+            return URL(string: "https://waze.com/ul?ll=\(point)&navigate=yes")
+        }
+    }
 }
 
 public enum WebLink {

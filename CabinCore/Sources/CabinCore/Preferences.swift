@@ -133,8 +133,13 @@ public struct Preferences: Codable, Equatable, Sendable {
     }
 
     public mutating func noteLaunch(_ app: AppEntry) {
-        recent.removeAll { $0 == app.id }
-        recent.insert(app.id, at: 0)
+        noteRecent(app.id)
+    }
+
+    /// Remembers that an app, or one of Cabin Dash's own screens ("maps", "now-playing", "drive"), was just opened.
+    public mutating func noteRecent(_ id: String) {
+        recent.removeAll { $0 == id }
+        recent.insert(id, at: 0)
         if recent.count > 6 { recent.removeLast(recent.count - 6) }
     }
 
