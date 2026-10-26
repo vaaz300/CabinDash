@@ -57,6 +57,8 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var theme: ThemeChoice
     public var wallpaper: Wallpaper
     public var keepAwake: Bool
+    /// Adds an Apps button to the dock that lists apps installed on this iPhone. Off by default: Cabin Dash is meant to be self-contained.
+    public var showOtherApps: Bool
     /// Show catalog apps that are installed on this iPhone without being asked.
     public var autoDetect: Bool
     /// Apps the user added by hand (catalog apps that cannot be detected, search results, web shortcuts).
@@ -69,7 +71,7 @@ public struct Preferences: Codable, Equatable, Sendable {
 
     public init(
         units: Units = .kmh, navApp: NavApp = .apple, theme: ThemeChoice = .auto, wallpaper: Wallpaper = .dusk,
-        keepAwake: Bool = true, autoDetect: Bool = true, added: [AppEntry] = [], hidden: Set<String> = [],
+        keepAwake: Bool = true, showOtherApps: Bool = false, autoDetect: Bool = true, added: [AppEntry] = [], hidden: Set<String> = [],
         places: [Place] = Preferences.starterPlaces(), recent: [String] = []
     ) {
         self.units = units
@@ -77,6 +79,7 @@ public struct Preferences: Codable, Equatable, Sendable {
         self.theme = theme
         self.wallpaper = wallpaper
         self.keepAwake = keepAwake
+        self.showOtherApps = showOtherApps
         self.autoDetect = autoDetect
         self.added = added
         self.hidden = hidden
@@ -93,7 +96,7 @@ public struct Preferences: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case units, navApp, theme, wallpaper, keepAwake, autoDetect, added, hidden, places, recent
+        case units, navApp, theme, wallpaper, keepAwake, showOtherApps, autoDetect, added, hidden, places, recent
     }
 
     public init(from decoder: Decoder) throws {
@@ -105,6 +108,7 @@ public struct Preferences: Codable, Equatable, Sendable {
             theme: try c.decodeIfPresent(ThemeChoice.self, forKey: .theme) ?? base.theme,
             wallpaper: try c.decodeIfPresent(Wallpaper.self, forKey: .wallpaper) ?? base.wallpaper,
             keepAwake: try c.decodeIfPresent(Bool.self, forKey: .keepAwake) ?? base.keepAwake,
+            showOtherApps: try c.decodeIfPresent(Bool.self, forKey: .showOtherApps) ?? base.showOtherApps,
             autoDetect: try c.decodeIfPresent(Bool.self, forKey: .autoDetect) ?? base.autoDetect,
             added: try c.decodeIfPresent([AppEntry].self, forKey: .added) ?? base.added,
             hidden: try c.decodeIfPresent(Set<String>.self, forKey: .hidden) ?? base.hidden,
