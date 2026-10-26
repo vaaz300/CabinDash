@@ -25,6 +25,12 @@ struct RootView: View {
                 .padding(.leading, CarLayout.edge)
                 .padding(.vertical, CarLayout.edge)
         }
+        .overlay(alignment: .topTrailing) {
+            StripStack()
+                .padding(.leading, CarLayout.railReserve)
+                .padding(.trailing, CarLayout.edge)
+                .padding(.top, CarLayout.edge)
+        }
         .overlay(alignment: .bottom) {
             ToastOverlay()
                 .padding(.bottom, 10)
