@@ -67,23 +67,25 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 
 ## 5. Keep the screen on
 
-`Keep screen on` (default on) sets iOS's idle timer to off while the app is on screen, which stops auto-lock and screen dimming. While a route is being followed on the Maps screen the screen also stays on, whatever that setting says. It is applied when the app returns to the screen and when you change the setting. It only works while Cabin Dash is the app in front; after you leave, iOS goes back to normal. It drains the battery noticeably, so a charging cable is the practical way to use it in a car. Low Power Mode and Screen Time limits were not tested.
+`Keep screen on` (default on) sets iOS's idle timer to off while the app is on screen, which stops auto-lock and screen dimming. While a route is being followed on the Map screen the screen also stays on, whatever that setting says. It is applied when the app returns to the screen and when you change the setting. It only works while Cabin Dash is the app in front; after you leave, iOS goes back to normal. It drains the battery noticeably, so a charging cable is the practical way to use it in a car. Low Power Mode and Screen Time limits were not tested.
 
-## 6. The CarPlay-style layout
+## 6. The layout
 
-The app is **landscape only** (both directions; upside-down is not offered, which is normal for iPhones). A frosted rail runs down the left edge: the time, Wi-Fi or cellular, a GPS dot, the battery, the apps you opened last (as many as fit, up to four), and a home button. The rest is the screen you are on: a paged four-by-two icon grid, Maps, Now Playing or Drive. Content stays inside the safe area, so the Dynamic Island and rounded corners should not cover it. The Maps screen is the one exception: the map itself runs under them.
+The app is **landscape only** (both directions; upside-down is not offered, which is normal for iPhones). A frosted dock runs down the left edge and is the same on every screen: the time, Wi-Fi or cellular, a GPS dot, the battery, then buttons for Home, Map, Music and Drive (and Apps, if Other apps is switched on in Settings), with Settings at the bottom. The buttons are sized to fit the screen height and never drop below 30 points; with Apps on, a small iPhone gets small buttons. The rest of the screen is the feature you are on. Content stays inside the safe area, so the Dynamic Island and rounded corners should not cover it. The Map screen is the one exception: the map itself runs under them.
+
+The music and next-turn bars sit at the top right of every screen except the one that already shows that information. On the Map screen the music bar sits over the top of the map, and on a narrow phone it may overlap the place panel on the left. That has not been checked on a screen.
 
 What it cannot copy from CarPlay:
 
 * **No unread badges.** iOS gives an app no way to read another app's badge count, so Phone and Messages have none.
 * **No signal bars.** iOS does not report cellular signal strength to apps. The rail shows whether the phone is on Wi-Fi, cellular or offline, and nothing it cannot know.
 * **Apple's artwork.** Apple's icons for Phone, Messages, Music and the like are not on the App Store, and the wallpapers are Apple's. Those tiles and the ribbon wallpaper are original drawings in the same spirit. Icons of apps that are on the App Store (Spotify, Google Maps, Waze and so on) are fetched from it at runtime, as before.
-* **Other apps' screens.** iOS has no way to show another app's screen or its live content inside Cabin Dash. Tapping Spotify or Google Maps opens that app and leaves Cabin Dash. That is why Maps and Now Playing are separate screens that Cabin Dash draws itself.
-* **Phone and Messages tiles.** They open `tel://` and `sms://`. Messages is a well-known link. Phone's bare `tel://` has not been tried and might do nothing on some iOS versions; if it fails, a message says "Couldn't open Phone".
+* **Other apps' screens.** iOS has no way to show another app's screen or its live content inside Cabin Dash. Tapping Spotify or Google Maps opens that app and leaves Cabin Dash. That is why Map and Music are separate screens that Cabin Dash draws itself.
+* **Phone and Messages.** Cabin Dash has no Phone or Messages screen yet. Their tiles on the optional Other apps screen open `tel://` and `sms://`. Messages is a well-known link. Phone's bare `tel://` has not been tried and might do nothing on some iOS versions; if it fails, a message says "Couldn't open Phone".
 
-**None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the rail spacing on a small iPhone (SE-sized screens are the likely problem), the label pills under the icons, and the page dots.
+**None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the dock spacing on a small iPhone (SE-sized screens are the likely problem), the three Home widgets, and whether the top-right bars cover anything you need.
 
-## 6a. The Maps screen
+## 6a. The Map screen
 
 * **The map is Apple Maps**, drawn by MapKit, with traffic on. **It is not Google Maps.** Google's own app cannot be embedded; there is a Google Maps SDK that could draw Google's map tiles inside Cabin Dash, but it needs a Google Cloud account with billing enabled and an API key, and its turn-by-turn product is not available to individuals. It has not been added.
 * **Search and routes** use Apple Maps' search and directions (`MKLocalSearch`, `MKDirections`). The text you search for and the address of a saved place are sent to Apple to do that. Needs internet.
@@ -93,7 +95,7 @@ What it cannot copy from CarPlay:
 
 ## 6b. Spotify
 
-See `docs/SPOTIFY-SETUP.md`. In short: Cabin Dash reads and steers the Spotify app through Spotify's Web API. It needs Premium and your own Spotify developer app. It cannot browse your library, cannot play audio, and cannot control Spotify when no Spotify device is active. Progress is read every few seconds and moved forward locally in between, so the bar can be a second or two off.
+See `docs/SPOTIFY-SETUP.md`. In short: the Music screen reads and steers the Spotify app through Spotify's Web API. It needs Premium and your own Spotify developer app. It cannot browse your library, cannot play audio, and cannot control Spotify when no Spotify device is active. Progress is read every few seconds and moved forward locally in between, so the bar can be a second or two off.
 
 ## 7. What a simulator build cannot show
 

@@ -1,6 +1,6 @@
 # Connecting Spotify
 
-The **Now Playing** screen shows what the Spotify app is playing and sends it play, pause, next, previous and seek. It does this through Spotify's Web API, signed in as you. Spotify keeps playing in its own app. Cabin Dash is a remote control and a display, not a music player.
+The **Music** screen shows what the Spotify app is playing and sends it play, pause, next, previous and seek. It does this through Spotify's Web API, signed in as you. Spotify keeps playing in its own app. Cabin Dash is a remote control and a display, not a music player.
 
 **What it cannot do:** browse your playlists or search Spotify (the **Spotify** tile opens the real app for that), play music itself, or work without the Spotify app already running on a device.
 
@@ -29,8 +29,8 @@ Rules for developer apps change. As of early 2026, Spotify's published rules wer
    * Value: the Client ID from step 3.
    * (It goes under **Variables**, not Secrets. The workflow reads it as a variable, and the Client ID is not secret.)
 6. Build a new copy: **Actions > Unsigned IPA (manual) > Run workflow.** Download the artifact, and install it with iLoader as before. The Client ID is baked into that build; a build made before you set the variable has Spotify switched off.
-7. On the iPhone: open Cabin Dash, tap the **Now Playing** tile, then **Connect Spotify.** Spotify's own page opens in a sheet. Sign in and press **Agree.** You land back in Cabin Dash.
-8. Start a song in the Spotify app. Go back to Cabin Dash. Now Playing shows it, and the buttons work.
+7. On the iPhone: open Cabin Dash, tap **Music** in the dock (the music-note button), then **Connect Spotify.** Spotify's own page opens in a sheet. Sign in and press **Agree.** You land back in Cabin Dash.
+8. Start a song in the Spotify app. Go back to Cabin Dash. Music shows it, the Home screen's music widget shows it, and the buttons work.
 
 ## If something goes wrong
 
@@ -48,5 +48,5 @@ To disconnect: **Settings > Spotify > Disconnect.** To take back access complete
 ## What Cabin Dash stores and sends
 
 * The sign-in tokens go in the iPhone's Keychain, on that phone only. They are never written to the repository, the logs or any server of mine.
-* While the app is on screen it asks Spotify what is playing every few seconds (faster on the Now Playing screen). It sends nothing else about you anywhere. It does not use the Spotify logo.
+* While the app is on screen it asks Spotify what is playing every few seconds (faster on the Music screen). It sends nothing else about you anywhere. It does not use the Spotify logo.
 * The Client ID is in the app you build, where anyone who can read the app file could find it. That is normal for this kind of sign-in (it is designed for apps that cannot keep a secret), and it is why no Client Secret is used.

@@ -1,6 +1,6 @@
 # Audit before the first cloud build
 
-> **Written for the first version.** The CarPlay-style rebuild (home grid, rail, Maps, Now Playing, Spotify) came after this audit and has had no compiler run on it yet; see the "CarPlay-style rebuild" section at the end.
+> **Written for the first version.** The CarPlay-style rebuild (home grid, rail, Maps, Now Playing, Spotify) came after this audit, and the feature shell replaced its icon grid after that; see the two sections at the end.
 
 This is what was checked in the existing project before any build was set up, what was changed, and what was left alone on purpose.
 
@@ -31,7 +31,7 @@ The brief asked for the smallest changes that give a working build, so the list 
 |---|---|---|
 | `CabinDash/Model/ToastCenter.swift` | added `import Observation` | `@Observable` comes from the Observation module. SwiftUI probably re-exports it, but an explicit import cannot hurt. |
 | `CabinDash/Views/RootView.swift` | the two `.task { }` closures now use `self.model` and `self.location` | Inside the view, `model` is also a local `@Bindable` variable. `.task` closures are `@Sendable`, and a local variable should not be captured by one. The environment value should. |
-| `CabinDash/Views/SettingsSheet.swift` | `Task { await self.model.refreshIcons() }` | Same reason, same pattern. |
+| `CabinDash/Views/SettingsSheet.swift` (now `Views/Settings/SettingsScreen.swift`) | `Task { await self.model.refreshIcons() }` | Same reason, same pattern. |
 | `CabinCore/Tests/CabinCoreTests/DriveTests.swift` | two calls to the mutating `trip.ingest(...)` moved out of `#expect(...)` into a `let` first | A mutating call on a `var` inside the `#expect` macro is a place Swift Testing can refuse to compile. |
 | `project.yml`, `Config/Signing.xcconfig`, `.gitignore` | signing values moved out of `project.yml` into an xcconfig; personal values go in a git-ignored `Config/Signing.local.xcconfig` | "Keep signing configuration out of the source code." The bundle id is `$(CABIN_BUNDLE_ID)`, and `DEVELOPMENT_TEAM` is empty in the repository. |
 
@@ -47,7 +47,7 @@ Not changed, deliberately: the design, the features, the deployment target (iOS 
 * **Entitlements.** None are needed and none exist: no push, no CarPlay entitlement, no app groups, no background modes.
 * **Deployment target.** `project.yml` and `CabinCore/Package.swift` both say iOS 17 (the package also says macOS 14 so `swift test` can run on a Mac). The APIs in use (`@Observable`, the two-parameter `onChange`, `AccessibilityNotification`) need iOS 17.
 * **Assets.** The 1024 px app icon has no transparency; `AccentColor` and `LaunchBackground` exist under the names `project.yml` refers to.
-* **Tests.** 98 `@Test` functions (at the time of the audit; 164 now), all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
+* **Tests.** 98 `@Test` functions (at the time of the audit; 182 now), all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
 
 ## Open risks (documented, not "fixed")
 
@@ -63,7 +63,9 @@ These cannot be settled without a compiler or a phone. Changing code to avoid th
 8. **Workflow actions are pinned to major versions (`@v4`), not to commit hashes.** I could not look up hashes from the build environment. Pinning to hashes is the stricter option if you ever make this repository more than personal. If GitHub starts warning that these versions are outdated, move them to the newer major versions after checking they exist.
 9. **The CI helper scripts parse real Xcode output** (log lines, result bundles, the generated project file, simulator listings). They were tested only against hand-written examples of that output. If a format differs, a helper may report something odd; the underlying `xcodebuild` log is always uploaded unedited so nothing is hidden.
 
-## CarPlay-style rebuild (not yet compiled)
+## CarPlay-style rebuild (written before it was compiled)
+
+> **Since then:** GitHub's "iOS build" run for commit `c5b2c5c` (26 Oct 2026) passed every step for this code, including the Mac and simulator tests, the test-count check and the launch check. That shows it compiles and its tests pass. It does not show how it looks or behaves on a phone.
 
 Added after the audit above: `HomeLayout`, `Spotify`, `SpotifyAuth` and `RouteGuide` in `CabinCore` (pure logic, 66 new tests), and in the app a `Shell` (ribbon wallpaper, home grid, status rail), `Maps` (map screen, search sheet), `Music` (Now Playing), plus `SpotifyModel`, `SpotifyAuthenticator`, `KeychainStore`, `RouteModel` and `DeviceStatus`. `AppsView`, `DockBar` and `WallpaperView` were removed. The app became landscape only, and `Info.plist` gained a `SpotifyClientID` entry fed from a build setting.
 
@@ -73,6 +75,18 @@ Added after the audit above: `HomeLayout`, `Spotify`, `SpotifyAuth` and `RouteGu
 * New app code was reread for the usual first-build failures: missing imports, `@Sendable` closures capturing the local `@Bindable`, MapKit signatures (the `MapStyle.standard` one was checked against Apple's documentation), and actor isolation.
 * The repository's own checks and their tests were run locally: `check_repo.py`, `check_schemes.py`, the CI helper tests.
 
-**Not checked, and likely to show up on the first run:** compile errors in the new views and models, Swift Testing macro problems in the new tests, and anything about how it looks or behaves. The cloud build's "App build" block is the way to find out.
+**Not checked when this was written, and likely to show up on the first run (it compiled; the rest is still true):** compile errors in the new views and models, Swift Testing macro problems in the new tests, and anything about how it looks or behaves. The cloud build's "App build" block is the way to find out.
 
 **Choices worth knowing about:** the Spotify Client ID is a build setting, not source, and is passed in from the `SPOTIFY_CLIENT_ID` repository variable by the unsigned-IPA workflow only. No Spotify secret is used (the sign-in is PKCE, which needs none). The screenshot the launch check saves is now `launch.png` (it was `launch-portrait.png`).
+
+## Feature shell (Phase 1 of the self-contained rebuild)
+
+The app stopped being an icon launcher. Navigation is now a `Router` over a `Feature` enum (`CabinCore/Sources/CabinCore/Feature.swift`), the left rail shows the same dock on every screen, and Settings is a screen instead of a sheet. Home is a Dashboard with Map, Music and Drive widgets. A thin bar for the playing track and one for the next turn follow the driver from screen to screen. The old icon grid survives only as the optional **Other apps** screen, which is off by default.
+
+**Removed:** `AppScreen`, the pinned/built-in tile logic and the recent-apps rail in `HomeLayout`; `HomeGrid.swift` (now `OtherAppsScreen.swift`); `SettingsSheet.swift` (now `Settings/SettingsScreen.swift`). **Added:** `Feature.swift` (with `Dock`, `Router`, `Strips`, `DockMetrics`), `Preferences.showOtherApps`, `FeatureIcon`, `Strips.swift`, `DashboardView`. Folders were regrouped by feature: `Views/Map`, `Views/Drive`, `Views/Settings`, `Views/Dashboard`.
+
+**Tests:** 182 declared (the dock, router, bar and sizing rules; the new preference and its decoding of old saved settings; the slimmer launcher). The SwiftUI views have no automated tests. Their pure rules do. Whether the views compile, and whether the app starts, is shown by the GitHub run for the commit, and only by that run.
+
+**Not verified, and only checkable on a phone:** how the dock, Home widgets and top bars look and fit (especially on a small iPhone); whether the non-interactive map widget behaves; whether the music and route bars cover anything; Spotify and GPS behaviour. `Map(position:interactionModes:)` was used without checking Apple's documentation for it. If the build rejects it, the fallback is to draw the map under a layer that blocks touches.
+
+**Choices worth knowing about:** every dock tap rebuilds the screen it goes to, so the Other apps page and the Map camera reset when you come back (route and music state are kept in the models and are not lost). The Phone and Messages tiles are still only links to the iPhone's own apps.

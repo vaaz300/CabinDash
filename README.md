@@ -1,12 +1,19 @@
 # Cabin Dash
 
-A CarPlay-style dashboard that runs on the iPhone's own screen, so it works in a car with no CarPlay and no Wi-Fi hotspot. Put the phone in a mount, plug it in, and open it.
+A self-contained driving screen for the iPhone, styled after CarPlay. It draws its own screens on the phone's display, so it works in a car with no CarPlay and no Wi-Fi hotspot. Put the phone in a mount, plug it in, and open it. Landscape only.
 
-- **Home.** A CarPlay-style home screen: a frosted rail down the left edge (clock, connection, battery, the apps you used last, a home button) and a paged four-by-two grid of icons with a ribbon wallpaper. Landscape only.
-- **Maps.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
-- **Now Playing.** Shows what the Spotify app is playing and controls it. Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`.
-- **Other apps.** Shows the apps it finds on your iPhone, with each app's App Store icon. Tap one to open it. iOS does not allow another app's screen inside Cabin Dash, so Google Maps and Spotify open as the real apps.
+A frosted dock runs down the left edge and stays put on every screen: the time, connection and battery, then **Home, Map, Music, Drive**, and a gear for **Settings**.
+
+- **Home.** Three live widgets: a map that follows you (with the next turn while you navigate), what Spotify is playing with previous, play/pause and next, and your speed with the trip so far. Tap a widget to open its full screen.
+- **Map.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
+- **Music.** Shows what the Spotify app is playing and controls it. Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`.
 - **Drive.** Live speed dial, heading, trip distance, trip time and average speed from the iPhone's GPS.
+- **Settings.** Units, directions app, Spotify, theme and wallpaper, saved places.
+- **Other apps (optional, off by default).** Turn on **Show Other apps in the dock** in Settings and an Apps button appears. It lists the apps found on your iPhone, with each app's App Store icon; tapping one leaves Cabin Dash and opens it. iOS does not allow another app's screen inside Cabin Dash.
+
+The track that is playing and the next turn also show as thin bars at the top right of every screen that does not already show them.
+
+**Not built yet:** Phone, Messages and Contacts as screens of their own (the Phone and Messages tiles on the Other apps screen hand off to the iPhone's own apps), spoken turn-by-turn directions, browsing your Spotify library, and car data. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; the current step is `docs/superpowers/plans/2026-10-26-phase-1-shell-and-dashboard.md`.
 
 This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud Mac" does the building.
 
@@ -14,14 +21,14 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 
 | | Status |
 |---|---|
-| Swift code compiles | **The CarPlay-style rebuild has not been built yet.** The version before it compiled and passed on GitHub's macOS runner (Xcode 26.5) on 25 Oct 2026. Everything added since (home grid, rail, Maps, Now Playing, Spotify sign-in) has been checked by reading only, with no Swift compiler. Expect the first run to show some compile errors. |
-| Unit tests | **Not run on the new code.** There are now 164 `@Test` functions declared, 66 of them new since the last green build. The build's test-count step fails the run if fewer than the declared number executed. |
-| App starts | Not known for the new version. The launch step checks the app is still running 12 seconds after launch on a simulator. |
-| Helper scripts used by the build | Tested here on sample data. They have run for real once, on the previous version. |
-| URL-scheme list matches the app catalogue | Checked by script: yes (37 apps, 30 schemes). |
-| App installed on an iPhone | The previous version was installed with iLoader. The new one has not been. |
-| Look matches CarPlay | **Not seen on a screen.** The layout was written from your two screenshots. Nobody has looked at it running, not even in a simulator. Send a screenshot and it will be adjusted. |
-| Spotify and Maps behaviour | **Untested.** Both need a real phone, and Spotify needs your own developer app. |
+| Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
+| Unit tests | 182 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
+| Helper scripts used by the build | Tested on sample data, and they run on every build. |
+| URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
+| App installed on an iPhone | An earlier version was installed with iLoader. **The dock, Home widgets and Settings screen have not been installed on a phone.** |
+| Look matches CarPlay | **Not seen on a screen.** The layout was written from your screenshots. Nobody has looked at it running, not even in a simulator. Send a screenshot and it will be adjusted. |
+| Spotify, Map and Home widgets | **Untested on a phone.** They need real GPS and, for Spotify, your own developer app. |
 
 Nothing in this repository claims a build or test passed unless the cloud build says so. A green simulator build does not mean the app works on a real iPhone: signing, real GPS, and detection of your real apps are still untested.
 
@@ -144,7 +151,7 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 ## How the app works
 
-**Finding your apps.** iOS does not let an app list what is installed. The only allowed trick is to ask, app by app, "can you open `spotify://`?" Cabin Dash does that for the 37 apps in `Catalog.swift`, and 30 of them have a known link. Those appear on their own. **It cannot find an app that is not in the catalogue**; those can be added by hand. The full list of what iOS permits and how the app copes is in **`docs/IOS-LIMITS.md`**.
+**Finding your apps (Other apps screen only).** iOS does not let an app list what is installed. The only allowed trick is to ask, app by app, "can you open `spotify://`?" Cabin Dash does that for the 37 apps in `Catalog.swift`, and 30 of them have a known link. Those appear on their own. **It cannot find an app that is not in the catalogue**; those can be added by hand. The full list of what iOS permits and how the app copes is in **`docs/IOS-LIMITS.md`**.
 
 - Seven catalogue apps have no known link (HERE WeGo, A Better Routeplanner, PlugShare, ChargePoint, Electrify America, EasyPark, CARROT Weather). Add them with the **+** button. When tapped they open their website or App Store page.
 - Six links are best guesses and may not match: SiriusXM, iHeartRadio, TuneIn, SpotHero, ChatGPT and Claude. If one is wrong, that app is not detected until you add it by hand.
@@ -155,11 +162,15 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 **Opening apps.** Tapping tries the app's own link first, then its website, then its App Store page. If all three fail, a message says so.
 
-**Home and the rail.** The grid starts with Phone, Spotify, Maps, Messages, Now Playing, Google Maps, Drive and Settings, then your other apps, then Add Apps. The rail shows the apps you opened last (three or four, depending on the screen height). Phone and Messages open the iPhone's own apps. Phone's link has not been tried, and iOS shows no unread badges to other apps, so there are none. The rail shows Wi-Fi or cellular and the battery, but iOS gives apps no signal-strength reading, so there are no signal bars.
+**The dock.** The same buttons on every screen: Home, Map, Music and Drive from the top, Settings at the bottom, and Apps after Drive if you turned on Other apps. The buttons shrink to fit short screens, but never below 30 points. The selected screen has a small bar under its button. The header shows the time, Wi-Fi or cellular, a GPS dot and the battery; iOS gives apps no signal-strength reading, so there are no signal bars. The navigation rules (what the dock shows, where a tap goes, which bars appear where) are plain code in `CabinCore/Sources/CabinCore/Feature.swift` and are unit tested.
 
-**Maps.** The map and the directions come from Apple Maps (MapKit), because iOS cannot put Google Maps inside another app. Turn-by-turn here is simple: it shows the next instruction and counts down the straight-line distance to it, and it moves on when you pass it. It does not speak, does not reroute by itself (there is a Reroute button), and stops updating when the screen is off or the app is in the background. For real navigation use **Open in Google Maps**, which starts the trip in the Google Maps app (set "Directions with" to Google Maps in Settings).
+**Other apps.** Off by default (Settings > Other apps). The screen lists Phone and Messages, which open the iPhone's own apps, then the apps found on your iPhone, then Add Apps. Phone's `tel://` link has not been tried, and iOS shows no unread badges to other apps, so there are none. If you switch Other apps off while that screen is open, you land on Home.
 
-**Now Playing.** See `docs/SPOTIFY-SETUP.md`.
+**Home.** The map widget is a real MapKit map that follows you and cannot be dragged; while a route is being followed it shows the next instruction, the distance to it and the time left. The music widget shows what Spotify is playing, or one line saying what is missing (Spotify isn't set up, Connect Spotify, Nothing playing). The drive widget shows your speed and trip, or "Location is off" or "Finding GPS" when there is no location.
+
+**Map.** The map and the directions come from Apple Maps (MapKit), because iOS cannot put Google Maps inside another app. Turn-by-turn here is simple: it shows the next instruction and counts down the straight-line distance to it, and it moves on when you pass it. It does not speak, does not reroute by itself (there is a Reroute button), and stops updating when the screen is off or the app is in the background. For real navigation use **Open in Google Maps**, which starts the trip in the Google Maps app (set "Directions with" to Google Maps in Settings).
+
+**Music.** See `docs/SPOTIFY-SETUP.md`.
 
 **Speed and trip.** From Core Location, only while the app is on screen. Standing still, poor readings and sudden jumps are ignored. The screen stays on while the app is open (switch off in Settings) and always while a route is being followed, so keep the phone plugged in. Turning off "Precise Location" for the app currently breaks speed and distance without a message; see `docs/IOS-LIMITS.md`.
 
@@ -193,8 +204,15 @@ CABIN_BUNDLE_ID = com.yourname.cabindash
 project.yml            Xcode project recipe (XcodeGen)
 Config/Signing.xcconfig  Signing defaults; nothing secret (personal values go in a git-ignored local file)
 Config/Info.plist      Location text, app links, orientations, Spotify Client ID slot (XcodeGen rewrites it)
-CabinCore/             Logic with no UI: catalogue, App Store matching, shelf and home-grid rules, trip maths, route guidance, Spotify sign-in and parsing, preferences, tests
-CabinDash/             Model, Views, Support: the app itself
+CabinCore/             Logic with no UI: the screens and dock rules (Feature.swift), catalogue, App Store matching, shelf and Other apps rules, trip maths, route guidance, Spotify sign-in and parsing, preferences, tests
+CabinDash/             The app itself
+  Model/               Shared state: AppModel (holds the Router), location, route, Spotify, toasts
+  Views/Shell/         Dock (StatusRail), the bars on top (Strips), Other apps screen, wallpaper
+  Views/Dashboard/     Home widgets
+  Views/Map/           Map screen and place search
+  Views/Music/         Music screen
+  Views/Drive/         Drive screen and gauge
+  Views/Settings/      Settings screen
 scripts/ci/            Helpers the cloud build runs, and their tests
 scripts/check_schemes.py, swift_sanity.py, make_icon.py
 docs/AUDIT.md          What was checked and changed before the first build
