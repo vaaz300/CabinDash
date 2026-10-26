@@ -10,10 +10,9 @@ private let log = Logger(subsystem: "app.cabindash", category: "app")
 @MainActor @Observable
 final class AppModel {
     var prefs: Preferences
-    /// The screen Cabin Dash is drawing, or nil for the home grid.
-    private(set) var screen: AppScreen?
+    /// Which of Cabin Dash's own screens is showing.
+    private(set) var router = Router()
     var pickerPresented = false
-    var settingsPresented = false
     /// Ids of catalog apps whose URL scheme this iPhone answered "yes" to.
     private(set) var installed: Set<String> = []
 
@@ -44,7 +43,7 @@ final class AppModel {
         Shelf.compose(installed: installed, preferences: prefs)
     }
 
-    /// Every tile of the home grid, in order.
+    /// Every tile of the Other apps screen, in order.
     var homeItems: [HomeItem] {
         HomeLayout.items(shelf: shelf)
     }
@@ -107,13 +106,9 @@ final class AppModel {
         await icons.sync(iconTargets)
     }
 
-    /// The shelf, plus the artwork the Maps tile borrows from Apple Maps.
+    /// The apps whose App Store artwork the Other apps screen needs.
     private var iconTargets: [AppEntry] {
-        var apps = shelf
-        if let artwork = HomeLayout.builtIn["maps"]?.artwork, !apps.contains(where: { $0.id == artwork.id }) {
-            apps.append(artwork)
-        }
-        return apps
+        shelf
     }
 
     /// Pull to refresh: look for installed apps again, then fetch any missing icons.
@@ -129,31 +124,31 @@ final class AppModel {
 
     // MARK: Opening things
 
-    /// What a tap on a tile or a rail icon does.
+    /// Goes to one of Cabin Dash's own screens. Ignored when that screen is not available, such as Apps while Other apps is off.
+    func go(_ feature: Feature) {
+        guard Dock.isAvailable(feature, showOtherApps: prefs.showOtherApps) else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        router.go(feature, showOtherApps: prefs.showOtherApps)
+    }
+
+    /// Call after the Other apps switch changes, so the Apps screen does not stay up once its button is gone.
+    func reconcileRouter() {
+        router.reconcile(showOtherApps: prefs.showOtherApps)
+    }
+
+    /// What a tap on a tile of the Other apps screen does.
     func open(_ item: HomeItem) {
         switch item.kind {
-        case .screen(let target):
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            prefs.noteRecent(item.id)
-            show(target)
         case .url(let url):
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             prefs.noteRecent(item.id)
             open([url], failure: "Couldn't open \(item.title)")
-        case .settings:
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            settingsPresented = true
         case .addApps:
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             pickerPresented = true
         case .app(let app):
             launch(app)
         }
-    }
-
-    /// Shows one of Cabin Dash's own screens, or the home grid for nil.
-    func show(_ target: AppScreen?) {
-        screen = target
     }
 
     func launch(_ app: AppEntry) {
@@ -165,7 +160,7 @@ final class AppModel {
     func navigate(to place: Place) {
         guard place.hasAddress else {
             toast.show("Add an address for \(place.name)", actionTitle: "Settings") { [weak self] in
-                self?.settingsPresented = true
+                self?.go(.settings)
             }
             return
         }

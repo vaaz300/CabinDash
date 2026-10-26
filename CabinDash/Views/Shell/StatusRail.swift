@@ -2,33 +2,35 @@ import SwiftUI
 import UIKit
 import CabinCore
 
-/// The tall frosted bar down the left edge: the time, the connection and battery, the apps you used last, and the home button.
+/// The tall frosted bar down the left edge: the time, the connection and battery, then the same buttons on every screen.
+/// Home, Map, Music and Drive (and Apps, if switched on) stack from the top; Settings sits at the bottom.
 struct StatusRail: View {
     @Environment(AppModel.self) private var model
 
-    private let iconSize: CGFloat = 52
-    private let iconGap: CGFloat = 16
-    private let headerHeight: CGFloat = 104
-    private let footerHeight: CGFloat = 70
+    private let headerHeight: CGFloat = 84
+    /// Breathing room above the first button and below the gear.
+    private let verticalPadding: CGFloat = 12
 
     var body: some View {
         GeometryReader { proxy in
-            let room = proxy.size.height - headerHeight - footerHeight - 24
-            let slots = max(1, min(4, Int(room / (iconSize + iconGap))))
-            let dock = HomeLayout.dock(items: model.homeItems, recent: model.prefs.recent, limit: slots)
+            let features = Dock.features(showOtherApps: model.prefs.showOtherApps)
+            let available = proxy.size.height - headerHeight - verticalPadding * 2
+            // The gear counts as a button for sizing, so everything fits whatever the screen height.
+            let size = DockMetrics.iconSize(availableHeight: Double(available), itemCount: features.count + 1)
+            let gap = DockMetrics.gap(forIconSize: size)
 
             VStack(spacing: 0) {
                 StatusHeader()
                     .frame(height: headerHeight)
-                Spacer(minLength: 0)
-                VStack(spacing: iconGap) {
-                    ForEach(dock) { item in
-                        RailButton(item: item, size: iconSize)
+                VStack(spacing: CGFloat(gap)) {
+                    ForEach(features, id: \.self) { feature in
+                        FeatureButton(feature: feature, size: CGFloat(size), gap: CGFloat(gap))
                     }
                 }
+                .padding(.top, verticalPadding)
                 Spacer(minLength: 0)
-                HomeButton()
-                    .frame(height: footerHeight)
+                FeatureButton(feature: Dock.footer, size: CGFloat(size), gap: CGFloat(gap))
+                    .padding(.bottom, verticalPadding)
             }
             .frame(width: CarLayout.railWidth, height: proxy.size.height)
             .railGlass(radius: 38)
@@ -63,7 +65,7 @@ private struct StatusHeader: View {
 
                 BatteryGlyph(level: model.device.batteryLevel, charging: model.device.isCharging)
             }
-            .padding(.top, 18)
+            .padding(.top, 10)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
@@ -119,49 +121,30 @@ private struct BatteryGlyph: View {
     }
 }
 
-/// One of the apps used last. Opens it, or does nothing if it is the screen already showing.
-private struct RailButton: View {
-    let item: HomeItem
+/// One of Cabin Dash's own screens. Marks the one showing, and does nothing when tapped again.
+private struct FeatureButton: View {
+    let feature: Feature
     let size: CGFloat
+    let gap: CGFloat
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let showing = item.screen != nil && item.screen == model.screen
+        let showing = model.router.current == feature
         Button {
-            if !showing { model.open(item) }
+            if !showing { model.go(feature) }
         } label: {
-            HomeIcon(item: item, size: size)
+            FeatureIcon(feature: feature, size: size)
                 .overlay(alignment: .bottom) {
                     if showing {
                         Capsule()
                             .fill(Color.primary.opacity(0.9))
                             .frame(width: 14, height: 3)
-                            .offset(y: 8)
+                            .offset(y: gap / 2 + 1.5)
                     }
                 }
         }
         .buttonStyle(PressScaleStyle())
-        .accessibilityLabel(item.title)
+        .accessibilityLabel(feature.title)
         .accessibilityAddTraits(showing ? .isSelected : [])
-    }
-}
-
-/// The rounded square at the bottom, which goes back to the home screen.
-private struct HomeButton: View {
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            model.show(nil)
-        } label: {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(Color.primary, lineWidth: 3)
-                .frame(width: 30, height: 30)
-                .frame(width: CarLayout.railWidth, height: 54)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(PressScaleStyle(scale: 0.9))
-        .accessibilityLabel("Home")
     }
 }

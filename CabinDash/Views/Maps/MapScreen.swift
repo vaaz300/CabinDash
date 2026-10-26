@@ -186,7 +186,7 @@ private struct IdlePanel: View {
 
             if saved.isEmpty {
                 Button {
-                    model.settingsPresented = true
+                    model.go(.settings)
                 } label: {
                     Label("Add Home or Work in Settings", systemImage: "house")
                         .font(.system(size: 15, weight: .medium))

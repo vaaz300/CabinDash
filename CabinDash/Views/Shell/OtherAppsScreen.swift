@@ -1,8 +1,9 @@
 import SwiftUI
 import CabinCore
 
-/// The home screen: four icons across, two down, in pages you swipe between, with dots underneath.
-struct HomeGrid: View {
+/// Apps installed on this iPhone, as four icons across and two down in pages you swipe between. Opening one leaves Cabin Dash.
+/// Optional: it is reached from the Apps button, which appears only while "Other apps" is switched on in Settings.
+struct OtherAppsScreen: View {
     @Environment(AppModel.self) private var model
     @State private var page: Int? = 0
 
