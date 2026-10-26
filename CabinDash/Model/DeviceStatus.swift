@@ -13,7 +13,8 @@ enum Connectivity: Equatable {
     var symbol: String {
         switch self {
         case .wifi: return "wifi"
-        case .cellular: return "cellularbars"
+        // Not "cellularbars": that icon shows full bars whatever the signal, and iOS never says how strong it is.
+        case .cellular: return "antenna.radiowaves.left.and.right"
         case .offline: return "wifi.slash"
         case .other: return "network"
         }

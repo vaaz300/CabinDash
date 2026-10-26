@@ -47,12 +47,12 @@ private struct StatusHeader: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 20)) { context in
             VStack(spacing: 6) {
-                Text(context.date, format: .dateTime.hour().minute())
+                Text(context.date, format: .dateTime.hour(.defaultDigits(amPM: .omitted)).minute())
                     .font(.system(size: 21, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
 
                 HStack(spacing: 6) {
                     Circle()

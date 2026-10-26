@@ -31,6 +31,8 @@ struct GaugeView: View {
                     Text(status)
                         .font(.footnote.weight(.medium))
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                         .padding(.bottom, side * 0.05)
                 }
             }

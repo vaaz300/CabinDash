@@ -36,7 +36,8 @@ private struct MapWidget: View {
         Button {
             model.go(.map)
         } label: {
-            ZStack(alignment: .bottomLeading) {
+            // The card sits at the top: Apple's "Maps" attribution and Legal link live in the bottom-left corner and must stay visible.
+            ZStack(alignment: .topLeading) {
                 Map(position: $camera, interactionModes: []) {
                     UserAnnotation()
                 }
@@ -214,7 +215,7 @@ private struct WidgetArtwork: View {
 
 // MARK: - Drive
 
-/// Speed as a big number, with the trip underneath. Says so when there is no location rather than showing a confident zero.
+/// The same speed dial as the Drive screen, with the trip underneath. Says so when there is no location rather than showing a confident zero.
 private struct DriveWidget: View {
     @Environment(AppModel.self) private var model
     @Environment(LocationModel.self) private var location
@@ -225,39 +226,34 @@ private struct DriveWidget: View {
         Button {
             model.go(.drive)
         } label: {
-            VStack(spacing: 4) {
+            Group {
                 if location.access == .denied {
-                    Label("Location is off", systemImage: "location.slash.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                    notice("Location is off", symbol: "location.slash.fill")
                 } else if !location.hasFix {
-                    Label("Finding GPS\u{2026}", systemImage: "location.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.secondary)
+                    notice("Finding GPS\u{2026}", symbol: "location.fill")
                 } else {
-                    Text("\(Int(units.speed(fromMetersPerSecond: location.speed).rounded()))")
-                        .font(.system(size: 56, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(.primary)
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
-                    Text(units.speedLabel)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Text("\(DriveFormat.distance(meters: location.trip.meters, units: units)) \(units.distanceLabel) \u{00B7} \(DriveFormat.duration(seconds: location.trip.seconds))")
-                        .font(.system(size: 15, weight: .medium))
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    let speed = units.speed(fromMetersPerSecond: location.speed)
+                    GaugeView(
+                        fraction: DriveFormat.gaugeFraction(speed: speed, units: units),
+                        speed: String(Int(speed.rounded())),
+                        unit: units.speedLabel,
+                        status: "\(DriveFormat.distance(meters: location.trip.meters, units: units)) \(units.distanceLabel) \u{00B7} \(DriveFormat.duration(seconds: location.trip.seconds))"
+                    )
+                    .padding(10)
                 }
             }
-            .padding(12)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .glass(radius: 24)
             .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.98))
         .accessibilityLabel("Drive")
+    }
+
+    private func notice(_ text: String, symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(12)
     }
 }
