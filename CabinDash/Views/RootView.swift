@@ -45,7 +45,7 @@ struct RootView: View {
             await self.model.startUp(location: self.location)
             self.model.spotify.setActive(self.scenePhase == .active)
         }
-        .task(id: model.shelf.map(\.id)) {
+        .task(id: model.iconTargets.map(\.id)) {
             await self.model.syncIcons()
         }
         .onChange(of: scenePhase) { _, phase in

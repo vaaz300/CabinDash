@@ -158,7 +158,7 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 - Any app whose link you know can be added: in the add screen, type `myapp://`.
 - Remove an app with a long press. You can undo it.
 
-**Icons.** iOS will not hand over another app's icon, so Cabin Dash gets each app's artwork from the App Store (Apple's public iTunes lookup service). A result is only used if its name matches the app, so a wrong id never shows another app's icon. With no internet a coloured letter is shown instead. Cabin Dash sends Apple the App Store ids or names of the apps on your shelf (and of every supported app when you open the add screen). Nothing else is sent, and your location never leaves the phone.
+**Icons.** iOS will not hand over another app's icon, so Cabin Dash gets each app's artwork from the App Store (Apple's public iTunes lookup service). A result is only used if its name matches the app, so a wrong id never shows another app's icon. With no internet a coloured letter is shown instead. While Other apps is off (the default), no icon lookups are made at all. With it on, Cabin Dash sends Apple the App Store ids or names of the apps on your shelf (and of every supported app when you open the add screen). Nothing else is sent, and your location never leaves the phone.
 
 **Opening apps.** Tapping tries the app's own link first, then its website, then its App Store page. If all three fail, a message says so.
 

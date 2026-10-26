@@ -85,6 +85,13 @@ public enum HomeLayout {
         return result
     }
 
+    /// The apps whose App Store artwork is worth fetching. None while the Other apps screen is off, so someone who never turns it on
+    /// sends Apple nothing about which apps are on their iPhone.
+    public static func iconApps(shelf: [AppEntry], showOtherApps: Bool) -> [AppEntry] {
+        guard showOtherApps else { return [] }
+        return shelf.filter { !replacedByFeatures.contains($0.id) }
+    }
+
     /// Splits tiles into pages of `perPage`. An empty list gives no pages.
     public static func pages(_ items: [HomeItem], perPage: Int = HomeLayout.perPage) -> [[HomeItem]] {
         guard perPage > 0, !items.isEmpty else { return [] }

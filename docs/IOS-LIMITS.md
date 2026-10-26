@@ -34,6 +34,7 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 
 **iOS does not let one app read another app's icon.** Cabin Dash gets each icon from the App Store's public lookup service instead, where every app has the same artwork. That has these consequences:
 
+* **Only while Other apps is on.** The Dock, Home and Settings need no icons, so with Other apps off (the default) no lookups are made and nothing about your apps is sent to Apple.
 * It needs internet. With no connection the tile shows a coloured letter (the app's initial on its category colour) until the next successful fetch.
 * A hit is remembered for 30 days; a failed search is remembered for 1 day, so it is retried tomorrow.
 * A result is accepted only when its name matches the app as a whole word (and, for Apple's own apps, the publisher matches too), so a wrong App Store id cannot put another app's icon on a tile.

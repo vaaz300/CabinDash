@@ -106,9 +106,9 @@ final class AppModel {
         await icons.sync(iconTargets)
     }
 
-    /// The apps whose App Store artwork the Other apps screen needs.
-    private var iconTargets: [AppEntry] {
-        shelf
+    /// The apps whose App Store artwork the Other apps screen needs. Empty while that screen is off, so nothing is looked up.
+    var iconTargets: [AppEntry] {
+        HomeLayout.iconApps(shelf: shelf, showOtherApps: prefs.showOtherApps)
     }
 
     /// Pull to refresh: look for installed apps again, then fetch any missing icons.
