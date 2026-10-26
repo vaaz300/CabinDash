@@ -42,6 +42,16 @@ import Testing
         #expect(schemes == ["tel", "sms"])
     }
 
+    @Test func noIconsAreFetchedWhileOtherAppsIsOff() {
+        // The Other apps screen is hidden by default, so nothing about the apps on this iPhone should go to Apple.
+        #expect(HomeLayout.iconApps(shelf: shelf(["waze", "spotify"]), showOtherApps: false).isEmpty)
+    }
+
+    @Test func iconsAreFetchedForTheShelfWhenOtherAppsIsOn() {
+        let apps = HomeLayout.iconApps(shelf: shelf(["apple-maps", "waze", "spotify"]), showOtherApps: true)
+        #expect(apps.map(\.id) == ["waze", "spotify"])
+    }
+
     @Test func pagesHoldEightTiles() {
         let items = (0..<20).map { HomeItem(id: "t\($0)", title: "T", kind: .addApps, symbol: "plus") }
         #expect(HomeLayout.pages(items).map(\.count) == [8, 8, 4])
