@@ -47,7 +47,7 @@ Not changed, deliberately: the design, the features, the deployment target (iOS 
 * **Entitlements.** None are needed and none exist: no push, no CarPlay entitlement, no app groups, no background modes.
 * **Deployment target.** `project.yml` and `CabinCore/Package.swift` both say iOS 17 (the package also says macOS 14 so `swift test` can run on a Mac). The APIs in use (`@Observable`, the two-parameter `onChange`, `AccessibilityNotification`) need iOS 17.
 * **Assets.** The 1024 px app icon has no transparency; `AccentColor` and `LaunchBackground` exist under the names `project.yml` refers to.
-* **Tests.** 98 `@Test` functions (at the time of the audit; 182 now), all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
+* **Tests.** 98 `@Test` functions (at the time of the audit; 184 now), all in `CabinCore` (Foundation only, so they can run without a simulator). There is no app-level test target; the app's logic lives in `CabinCore` for that reason.
 
 ## Open risks (documented, not "fixed")
 
@@ -85,8 +85,10 @@ The app stopped being an icon launcher. Navigation is now a `Router` over a `Fea
 
 **Removed:** `AppScreen`, the pinned/built-in tile logic and the recent-apps rail in `HomeLayout`; `HomeGrid.swift` (now `OtherAppsScreen.swift`); `SettingsSheet.swift` (now `Settings/SettingsScreen.swift`). **Added:** `Feature.swift` (with `Dock`, `Router`, `Strips`, `DockMetrics`), `Preferences.showOtherApps`, `FeatureIcon`, `Strips.swift`, `DashboardView`. Folders were regrouped by feature: `Views/Map`, `Views/Drive`, `Views/Settings`, `Views/Dashboard`.
 
-**Tests:** 182 declared (the dock, router, bar and sizing rules; the new preference and its decoding of old saved settings; the slimmer launcher). The SwiftUI views have no automated tests. Their pure rules do. Whether the views compile, and whether the app starts, is shown by the GitHub run for the commit, and only by that run.
+**Tests:** 184 declared (the dock, router, bar and sizing rules; the new preference and its decoding of old saved settings; the slimmer launcher). The SwiftUI views have no automated tests. Their pure rules do. Whether the views compile, and whether the app starts, is shown by the GitHub run for the commit, and only by that run.
 
 **Not verified, and only checkable on a phone:** how the dock, Home widgets and top bars look and fit (especially on a small iPhone); whether the non-interactive map widget behaves; whether the music and route bars cover anything; Spotify and GPS behaviour. `Map(position:interactionModes:)` was used without checking Apple's documentation for it. If the build rejects it, the fallback is to draw the map under a layer that blocks touches.
+
+**Found in the read-through before handing over, and fixed:** with Other apps off (the default) the app still asked Apple's App Store for the icons of the apps on your shelf at every launch. `HomeLayout.iconApps` now returns nothing while the switch is off, and two tests pin that. **Found and left alone:** the Map screen is rebuilt on every dock tap, so coming back to it mid-route leaves the camera not turning with your heading until you tap Recenter.
 
 **Choices worth knowing about:** every dock tap rebuilds the screen it goes to, so the Other apps page and the Map camera reset when you come back (route and music state are kept in the models and are not lost). The Phone and Messages tiles are still only links to the iPhone's own apps.
