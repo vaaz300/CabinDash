@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import CabinCore
 
-@Suite struct PreferencesTests {
+@Suite struct OtherAppsSwitchTests {
     @Test func otherAppsIsOffByDefault() {
         #expect(Preferences().showOtherApps == false)
     }
