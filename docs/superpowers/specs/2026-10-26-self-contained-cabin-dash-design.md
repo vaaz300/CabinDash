@@ -205,7 +205,7 @@ Fully inside. Settings stops being a sheet and becomes a screen in the app (unit
 └────────────────────────────────────────────────────────────────────────────┘
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ FEATURES (each = its screens + its model + its service)                    │
-│  Dashboard · Map · Music · Phone+Contacts · Messages · Drive+Trips · Settings │
+│  Dashboard · Map · Music · Phone · Messages · Drive · Settings             │
 └────────────────────────────────────────────────────────────────────────────┘
 ┌────────────────────────────────────────────────────────────────────────────┐
 │ SERVICES (thin wrappers around iOS, no screens)                            │
