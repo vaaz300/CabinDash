@@ -156,6 +156,7 @@ public struct SpotifyPage<Item: Equatable & Sendable>: Equatable, Sendable {
 
 /// Reads Spotify's answers. Each returns nil when the body is empty or is not the kind of JSON expected,
 /// and quietly skips the single entries that are null or malformed, because Spotify does send those.
+/// Paging objects are read for `next`, `offset`, `limit` and `total`.
 public enum SpotifyLibrary {
     public static func parsePlaylists(_ data: Data) -> SpotifyPage<SpotifyPlaylist>? {
         guard let root = object(data) else { return nil }
