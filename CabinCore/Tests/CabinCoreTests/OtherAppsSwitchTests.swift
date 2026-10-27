@@ -21,6 +21,33 @@ import Testing
         #expect(decoded.showOtherApps)
     }
 
+    @Test func passengerModeIsOffByDefault() {
+        #expect(Preferences().passengerMode == false)
+    }
+
+    @Test func oldSavesDefaultPassengerModeOff() throws {
+        let old = #"{"units":"mph","showOtherApps":true,"keepAwake":false}"#
+        let decoded = try JSONDecoder().decode(Preferences.self, from: Data(old.utf8))
+        #expect(decoded.passengerMode == false)
+        #expect(decoded.units == .mph)
+        #expect(decoded.showOtherApps)
+        #expect(decoded.keepAwake == false)
+    }
+
+    @Test func passengerModeSurvivesSavingAndLoading() throws {
+        let original = Preferences(passengerMode: true)
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(Preferences.self, from: data)
+        #expect(decoded == original)
+        #expect(decoded.passengerMode)
+    }
+
+    @Test func resettingAppsKeepsPassengerMode() {
+        var preferences = Preferences(passengerMode: true)
+        preferences.resetApps()
+        #expect(preferences.passengerMode)
+    }
+
     @Test func resettingAppsKeepsTheSwitch() {
         var preferences = Preferences(showOtherApps: true)
         preferences.resetApps()
