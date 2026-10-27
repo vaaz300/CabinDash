@@ -8,12 +8,12 @@ import Testing
     }
 
     @Test func systemLinksComeFirstThenAddApps() {
-        #expect(HomeLayout.items(shelf: []).map(\.id) == ["phone", "messages", "add-apps"])
+        #expect(HomeLayout.items(shelf: []).map(\.id) == ["messages", "add-apps"])
     }
 
     @Test func shelfAppsFollowTheSystemLinksInShelfOrder() {
         let ids = HomeLayout.items(shelf: shelf(["waze", "spotify"])).map(\.id)
-        #expect(ids == ["phone", "messages", "waze", "spotify", "add-apps"])
+        #expect(ids == ["messages", "waze", "spotify", "add-apps"])
     }
 
     @Test func appleMapsAppGetsNoTile() {
@@ -33,13 +33,15 @@ import Testing
         #expect(Set(ids).count == ids.count)
     }
 
-    @Test func phoneAndMessagesAreSystemLinks() {
+    @Test func onlyMessagesIsASystemLink() {
+        // A bare tel:// link has no number to call, so iOS shows its Call prompt with nothing in it, and iOS has no public link
+        // that opens the Phone app. Phone comes back as a screen of its own, where each call has a number.
         let schemes = HomeLayout.systemLinks.map { item -> String? in
             if case .url(let url) = item.kind { return url.scheme }
             return nil
         }
-        #expect(HomeLayout.systemLinks.map(\.id) == ["phone", "messages"])
-        #expect(schemes == ["tel", "sms"])
+        #expect(HomeLayout.systemLinks.map(\.id) == ["messages"])
+        #expect(schemes == ["sms"])
     }
 
     @Test func noIconsAreFetchedWhileOtherAppsIsOff() {
