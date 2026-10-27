@@ -51,6 +51,11 @@ public struct SpotifyPlaylist: Equatable, Sendable, Identifiable {
 
     public var id: String { uri }
 
+    /// The id inside the URI (`spotify:playlist:<id>`), which is what the playlist calls take in their path.
+    public var spotifyID: String {
+        uri.split(separator: ":").last.map(String.init) ?? uri
+    }
+
     public init(
         uri: String, name: String, artworkURL: URL? = nil, ownerID: String? = nil, ownerName: String = "",
         trackCount: Int? = nil, isCollaborative: Bool = false
