@@ -152,6 +152,37 @@ public struct SpotifyPage<Item: Equatable & Sendable>: Equatable, Sendable {
     }
 }
 
+// MARK: - Devices and links
+
+public enum SpotifyDevices {
+    /// The device to start playing on when Spotify says none is active. Only when exactly one device can take commands:
+    /// with several, which one the person wants is theirs to say, so this never guesses.
+    public static func autoTarget(_ devices: [SpotifyDevice]) -> SpotifyDevice? {
+        let usable = devices.filter { !$0.isRestricted }
+        return usable.count == 1 ? usable[0] : nil
+    }
+}
+
+/// Ways into the Spotify app.
+public enum SpotifyLink {
+    /// Spotify's required wording for a link back to its app.
+    public static let label = "Open Spotify"
+
+    private static let kinds: Set<String> = ["track", "album", "playlist", "episode", "show", "artist"]
+
+    /// Addresses to try in order: the Spotify app's own link, then the web page that hands over to it.
+    /// A missing, local-file or unrecognised URI opens Spotify's home instead.
+    public static func openURLs(forURI uri: String?) -> [URL] {
+        let home = [URL(string: "spotify://"), URL(string: "https://open.spotify.com")].compactMap { $0 }
+        guard let uri else { return home }
+        let parts = uri.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 3, parts[0] == "spotify", kinds.contains(parts[1]),
+              !parts[2].isEmpty, parts[2].allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }) else { return home }
+        let links = [URL(string: uri), URL(string: "https://open.spotify.com/\(parts[1])/\(parts[2])")].compactMap { $0 }
+        return links.isEmpty ? home : links
+    }
+}
+
 // MARK: - Parsers
 
 /// Reads Spotify's answers. Each returns nil when the body is empty or is not the kind of JSON expected,
