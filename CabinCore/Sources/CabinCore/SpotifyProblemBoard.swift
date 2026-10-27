@@ -5,7 +5,7 @@ import Foundation
 /// What is playing is read every few seconds. If any good read cleared the complaint, a failed tap on a song would show
 /// "no device ready" for under a second: with no device Spotify answers every read with "nothing is playing", which is
 /// a good read. So a complaint about something the person asked for stays until something shows it is out of date:
-/// a command that works, or a song actually playing. Connection trouble is different. It clears as soon as Spotify answers.
+/// a command that works, or a song actually playing. Connection trouble is different: it clears as soon as Spotify answers a read.
 public struct SpotifyProblemBoard: Equatable, Sendable {
     public private(set) var current: SpotifyFailure?
     /// True while `current` is about a command and an idle read ("nothing is playing") does not disprove it.
