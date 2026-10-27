@@ -62,6 +62,8 @@ final class SpotifyLibraryModel {
     @ObservationIgnored private var playlistNext: Int?
     @ObservationIgnored private var playlistLoadingMore = false
     @ObservationIgnored private var playlistGeneration = 0
+    /// Bumped by `reset()`. An answer that arrives after a reset belongs to the previous sign-in and is dropped.
+    @ObservationIgnored private var epoch = 0
 
     /// A long library is read this many pages deep at most (50 playlists a page).
     private static let maxPlaylistPages = 6
@@ -97,12 +99,45 @@ final class SpotifyLibraryModel {
         return .failure(failure)
     }
 
+    // MARK: Signing out
+
+    /// Forgets everything read from Spotify. Called when the person disconnects (or Spotify signs them out), so whoever
+    /// connects next never sees the last account's playlists, likes or profile.
+    func reset() {
+        epoch += 1
+        playlistGeneration += 1
+        likedGeneration += 1
+        section = .nowPlaying
+        playlists = .idle
+        liked = .idle
+        likedTotal = nil
+        likedNext = nil
+        likedLoadingMore = false
+        openPlaylist = nil
+        playlistTracks = .idle
+        playlistNext = nil
+        playlistLoadingMore = false
+        profileID = nil
+        profileChecked = false
+        searchText = ""
+        search = .idle
+        queue = .idle
+        devices = .idle
+        devicePickerPresented = false
+        likes = [:]
+        likeVersion = [:]
+        liking = []
+    }
+
     // MARK: Profile
 
     func loadProfileIfNeeded() async {
         guard profileID == nil else { return }
+        let epoch = self.epoch
         // A profile that cannot be read is not worth a banner: the playlists still work, they just cannot tell which are the person's own.
-        if case .success(let profile) = await fetch(SpotifyEndpoint.profile(), report: false, read: SpotifyLibrary.parseProfile) {
+        let outcome = await fetch(SpotifyEndpoint.profile(), report: false, read: SpotifyLibrary.parseProfile)
+        guard epoch == self.epoch else { return }
+        if case .success(let profile) = outcome {
             profileID = profile.id
         }
         profileChecked = true
@@ -117,7 +152,10 @@ final class SpotifyLibraryModel {
     }
 
     private func runLoadPlaylists() async {
-        playlists = await fetchAllPlaylists()
+        let epoch = self.epoch
+        let result = await fetchAllPlaylists()
+        guard epoch == self.epoch else { return }
+        playlists = result
         await loadProfileIfNeeded()
     }
 
@@ -293,11 +331,13 @@ final class SpotifyLibraryModel {
     }
 
     private func runLoadQueue() async {
+        let epoch = self.epoch
         if queue.isIdle { queue = .loading }
         // Spotify answers 204 with no body when there is nothing to queue, which is an empty queue, not an error.
         let outcome = await fetch(SpotifyEndpoint.queue()) { data in
             data.isEmpty ? SpotifyQueue() : SpotifyLibrary.parseQueue(data)
         }
+        guard epoch == self.epoch else { return }
         switch outcome {
         case .success(let value):
             queue = .loaded(value)
@@ -323,8 +363,11 @@ final class SpotifyLibraryModel {
     }
 
     func reloadDevices() async {
+        let epoch = self.epoch
         if devices.isIdle { devices = .loading }
-        switch await fetch(SpotifyEndpoint.devices(), read: SpotifyLibrary.parseDevices) {
+        let outcome = await fetch(SpotifyEndpoint.devices(), read: SpotifyLibrary.parseDevices)
+        guard epoch == self.epoch else { return }
+        switch outcome {
         case .success(let list):
             devices = .loaded(list)
         case .failure(let failure):
@@ -362,12 +405,13 @@ final class SpotifyLibraryModel {
     func refreshLiked(for uri: String) {
         guard Self.canLike(uri), !liking.contains(uri) else { return }
         let version = likeVersion[uri, default: 0]
+        let epoch = self.epoch
         Task {
             let outcome = await self.fetch(
                 SpotifyEndpoint.contains(uris: [uri]), report: false, read: SpotifyLibrary.parseContains
             )
-            // A like or unlike made while this was in flight is newer than the answer.
-            guard version == self.likeVersion[uri, default: 0] else { return }
+            // A like or unlike made while this was in flight is newer than the answer, and so is a sign-out.
+            guard epoch == self.epoch, version == self.likeVersion[uri, default: 0] else { return }
             if case .success(let answers) = outcome, let liked = answers.first {
                 self.likes[uri] = liked
             }
@@ -385,9 +429,11 @@ final class SpotifyLibraryModel {
         liking.insert(uri)
         likeVersion[uri, default: 0] += 1
         likes[uri] = target
+        let epoch = self.epoch
         Task {
             let request = target ? SpotifyEndpoint.save(uris: [uri]) : SpotifyEndpoint.remove(uris: [uri])
             let outcome = await self.fetch(request) { _ in true }
+            guard epoch == self.epoch else { return }
             self.liking.remove(uri)
             switch outcome {
             case .success:

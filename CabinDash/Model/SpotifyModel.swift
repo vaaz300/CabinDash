@@ -38,12 +38,14 @@ final class SpotifyModel {
     private(set) var nowPlaying: NowPlaying?
     /// When `nowPlaying` was read, so the progress bar can keep moving between reads.
     private(set) var observedAt = Date()
+    /// What the Music screen complains about. Set only through `board`, which decides when a complaint may go away.
     private(set) var problem: SpotifyFailure?
     /// False until Spotify has answered once, so the screen does not say "nothing playing" while it is still asking.
     private(set) var hasAnswered = false
 
     let clientID: String
 
+    @ObservationIgnored private var board = SpotifyProblemBoard()
     @ObservationIgnored private var token: SpotifyToken?
     @ObservationIgnored private let session: URLSession
     @ObservationIgnored private let authenticator = SpotifyAuthenticator()
@@ -133,11 +135,13 @@ final class SpotifyModel {
             let reply = try await perform(SpotifyEndpoint.player())
             if reply.status == 204 {
                 nowPlaying = nil
-                problem = nil
+                board.readAnswered(playing: false)
+                publishProblem()
             } else if reply.isSuccess {
                 nowPlaying = SpotifyPlayback.parse(reply.data)
                 observedAt = Date()
-                problem = nil
+                board.readAnswered(playing: nowPlaying != nil)
+                publishProblem()
             } else {
                 throw reply.failure
             }
@@ -204,9 +208,10 @@ final class SpotifyModel {
             failure = await playOnTheOnlyDevice(target)
         }
         if let failure {
-            note(failure)
+            note(failure, fromCommand: true)
         } else {
-            problem = nil
+            board.commandSucceeded()
+            publishProblem()
         }
         try? await Task.sleep(for: .milliseconds(400))
         await refresh()
@@ -250,10 +255,11 @@ final class SpotifyModel {
         do {
             let reply = try await perform(request)
             if reply.isSuccess {
-                problem = nil
+                board.commandSucceeded()
+                publishProblem()
                 accepted = true
             } else {
-                note(reply.failure)
+                note(reply.failure, fromCommand: true)
             }
         } catch {
             handle(error)
@@ -269,7 +275,8 @@ final class SpotifyModel {
     func signIn() async {
         guard phase == .signedOut || phase == .needsReconnect else { return }
         let before = phase
-        problem = nil
+        board.clear()
+        publishProblem()
         phase = .signingIn
 
         let verifier = PKCE.randomString()
@@ -278,7 +285,8 @@ final class SpotifyModel {
             clientID: clientID, challenge: PKCE.challenge(forVerifier: verifier), state: state
         ) else {
             phase = before
-            problem = .http(0)
+            board.readFailed(.http(0))
+            publishProblem()
             return
         }
 
@@ -299,7 +307,8 @@ final class SpotifyModel {
                 return // the person closed the sheet
             }
             log.info("Spotify sign-in failed: \(error.localizedDescription, privacy: .public)")
-            problem = (error as? SpotifyFailure) ?? .offline
+            board.readFailed((error as? SpotifyFailure) ?? .offline)
+            publishProblem()
         }
     }
 
@@ -412,6 +421,11 @@ final class SpotifyModel {
         handle(error)
     }
 
+    /// Copies the board's complaint to `problem`, which the screens watch, only when it has changed.
+    private func publishProblem() {
+        if problem != board.current { problem = board.current }
+    }
+
     private func handle(_ error: Error) {
         if error is CancellationError { return }
         if let urlError = error as? URLError, urlError.code == .cancelled { return }
@@ -419,9 +433,15 @@ final class SpotifyModel {
     }
 
     /// Remembers what went wrong, so the screen can say so, and backs off when Spotify asks for it.
-    private func note(_ failure: SpotifyFailure) {
+    /// `fromCommand` is true for a refusal of something the person asked for, which stays on screen until something shows it is out of date.
+    private func note(_ failure: SpotifyFailure, fromCommand: Bool = false) {
         hasAnswered = true
-        problem = failure
+        if fromCommand {
+            board.commandFailed(failure)
+        } else {
+            board.readFailed(failure)
+        }
+        publishProblem()
         if case .rateLimited(let seconds) = failure {
             pausedUntil = Date().addingTimeInterval(Double(max(1, seconds)))
         }

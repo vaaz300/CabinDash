@@ -73,6 +73,10 @@ struct RootView: View {
         .onChange(of: model.router.current) { _, current in
             model.spotify.setFast(current == .music)
         }
+        // Disconnecting (or Spotify signing the person out) drops the lists read for that account.
+        .onChange(of: model.spotify.phase) { _, phase in
+            if phase != .signedIn { model.library.reset() }
+        }
         .onChange(of: model.prefs.showOtherApps) { _, _ in
             model.reconcileRouter()
         }
