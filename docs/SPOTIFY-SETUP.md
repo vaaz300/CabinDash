@@ -4,14 +4,14 @@ The **Music** screen shows what the Spotify app is playing and sends it play, pa
 
 **What it cannot do:** browse your playlists or search Spotify (the **Spotify** tile opens the real app for that), play music itself, or work without the Spotify app already running on a device.
 
-**Status: not tested.** The sign-in and playback code has been written and its pure parts (the sign-in maths, the reading of Spotify's answers) have unit tests. It has never talked to Spotify. The first real check is you, on your iPhone. The wording of Spotify's dashboard below is from memory and may have moved.
+**Status: not tested.** The sign-in and playback code has been written and its pure parts (the sign-in maths, the reading of Spotify's answers) have unit tests. It has never talked to Spotify. The first real check is you, on your iPhone. The rules below were checked against Spotify's own pages on 27 Oct 2026. The exact wording and layout of the dashboard form was not, so it may differ a little from the steps.
 
 ## What you need
 
 * A **Spotify Premium** account. Spotify only lets Premium accounts control playback through the Web API.
 * A free Spotify developer app, which you make yourself. It takes about five minutes. It is how Spotify knows which app is asking.
 
-Rules for developer apps change. As of early 2026, Spotify's published rules were that apps in "development mode" need the account that owns the app to be Premium, and allow a small number of named users (five). Check the dashboard for the current terms.
+**Checked on 27 Oct 2026 against Spotify's pages:** every development-mode app needs its **owner** to have an active Premium subscription (if it lapses, the app stops working until it is renewed), and a new app allows **5 users**. Redirect addresses with a custom scheme, such as `cabindash://`, are still supported, and a redirect address must match the one in the dashboard exactly. Rules change, so check the dashboard for the current terms.
 
 ## Step by step (all in a browser on your PC)
 
@@ -19,11 +19,11 @@ Rules for developer apps change. As of early 2026, Spotify's published rules wer
 2. **Create app.**
    * App name: `Cabin Dash` (anything).
    * Description: anything.
-   * **Redirect URI:** type exactly `cabindash://spotify-callback` and press **Add**. It must match to the letter, or Spotify refuses to sign you in.
-   * Which API/SDKs: tick **Web API**.
+   * **Redirect URI:** type exactly `cabindash://spotify-callback` and press **Add**. It must match to the letter, or Spotify refuses to sign you in. (Spotify's own page lists only the name, description and terms on the create dialog and puts redirect addresses under **Edit Settings**. If your create form has no Redirect URI field, create the app first and add it in the app's **Settings**.)
+   * If it asks which API/SDKs you plan to use: tick **Web API**.
    * Accept the terms and **Save**.
 3. Open the app's **Settings**. Copy the **Client ID**. (It is a public identifier, not a password. You do not need the Client Secret and should not use it.)
-4. In the app's **User Management**, add yourself: your name and the email address of your Spotify account. In development mode, Spotify only lets people listed here sign in.
+4. If the app has a **User Management** tab, add yourself: your name and the email address of your Spotify account. In development mode Spotify limits who can sign in, and its pages do not say whether the owner is added automatically. Adding yourself does no harm.
 5. In your GitHub repository: **Settings > Secrets and variables > Actions > Variables tab > New repository variable.**
    * Name: `SPOTIFY_CLIENT_ID`
    * Value: the Client ID from step 3.
