@@ -9,10 +9,16 @@ struct NowPlayingPane: View {
 
     var body: some View {
         let spotify = model.spotify
-        if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
-            PlayerView(spotify: spotify, playing: playing)
-        } else {
-            StatePanel(spotify: spotify)
+        Group {
+            if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
+                PlayerView(spotify: spotify, playing: playing)
+            } else {
+                StatePanel(spotify: spotify)
+            }
+        }
+        // The heart needs to know whether this song is liked, which is asked once per song while this pane is showing.
+        .onChange(of: spotify.nowPlaying?.uri, initial: true) { _, uri in
+            if let uri { model.library.refreshLiked(for: uri) }
         }
     }
 }
@@ -176,7 +182,8 @@ private struct Controls: View {
                 }
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 56) {
+            // Three buttons now (shuffle, repeat, like), kept narrower than the transport row above so nothing is clipped.
+            HStack(spacing: 28) {
                 Spacer(minLength: 0)
                 ModeButton(
                     symbol: "shuffle", label: track.shuffle ? "Shuffle on" : "Shuffle off",
@@ -189,6 +196,9 @@ private struct Controls: View {
                     active: track.repeatMode != .off, enabled: track.canRepeat
                 ) {
                     Task { await spotify.cycleRepeat() }
+                }
+                if SpotifyLibraryModel.canLike(track.uri), let uri = track.uri {
+                    LikeButton(uri: uri)
                 }
                 Spacer(minLength: 0)
             }
@@ -245,6 +255,30 @@ private struct ModeButton: View {
         .opacity(enabled ? 1 : 0.3)
         .accessibilityLabel(label)
         .accessibilityAddTraits(active ? [.isSelected] : [])
+    }
+}
+
+/// The heart: lit when the song is in Liked Songs. Dimmed until Spotify has said which; tapping it then asks again.
+private struct LikeButton: View {
+    let uri: String
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let liked = model.library.isLiked(uri)
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            model.library.toggleLiked(uri)
+        } label: {
+            Image(systemName: liked == true ? "heart.fill" : "heart")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(liked == true ? Theme.accent : Color.primary.opacity(0.7))
+                .frame(width: 72, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.88))
+        .opacity(liked == nil ? 0.4 : 1)
+        .accessibilityLabel(liked == true ? "Remove from Liked Songs" : "Add to Liked Songs")
+        .accessibilityAddTraits(liked == true ? [.isSelected] : [])
     }
 }
 

@@ -340,6 +340,75 @@ final class SpotifyLibraryModel {
         }
     }
 
+    // MARK: Likes
+
+    /// Whether Spotify has this song in Liked Songs, for the songs seen this session. Nil while that is not known.
+    /// Nothing is saved on this iPhone: Spotify is the only place a like lives.
+    private(set) var likes: [String: Bool] = [:]
+    @ObservationIgnored private var likeVersion: [String: Int] = [:]
+    @ObservationIgnored private var liking: Set<String> = []
+
+    /// Only songs can be liked: not podcast episodes, local files or ads.
+    static func canLike(_ uri: String?) -> Bool {
+        uri?.hasPrefix("spotify:track:") == true
+    }
+
+    func isLiked(_ uri: String) -> Bool? {
+        likes[uri]
+    }
+
+    /// Asks Spotify whether this song is liked. Run whenever the song changes, so a like made in the Spotify app shows up too.
+    /// A failure is not worth a banner: the heart just stays unknown, and tapping it asks again.
+    func refreshLiked(for uri: String) {
+        guard Self.canLike(uri), !liking.contains(uri) else { return }
+        let version = likeVersion[uri, default: 0]
+        Task {
+            let outcome = await self.fetch(
+                SpotifyEndpoint.contains(uris: [uri]), report: false, read: SpotifyLibrary.parseContains
+            )
+            // A like or unlike made while this was in flight is newer than the answer.
+            guard version == self.likeVersion[uri, default: 0] else { return }
+            if case .success(let answers) = outcome, let liked = answers.first {
+                self.likes[uri] = liked
+            }
+        }
+    }
+
+    /// Likes or unlikes the song at once, then tells Spotify. If Spotify says no, the heart goes back and the reason is shown.
+    func toggleLiked(_ uri: String) {
+        guard Self.canLike(uri), !liking.contains(uri) else { return }
+        guard let before = likes[uri] else {
+            refreshLiked(for: uri)
+            return
+        }
+        let target = !before
+        liking.insert(uri)
+        likeVersion[uri, default: 0] += 1
+        likes[uri] = target
+        Task {
+            let request = target ? SpotifyEndpoint.save(uris: [uri]) : SpotifyEndpoint.remove(uris: [uri])
+            let outcome = await self.fetch(request) { _ in true }
+            self.liking.remove(uri)
+            switch outcome {
+            case .success:
+                self.toast.show(target ? "Added to Liked Songs" : "Removed from Liked Songs")
+                self.invalidateLiked()
+            case .failure:
+                self.likes[uri] = before
+                self.toast.show("Couldn't update Liked Songs")
+            }
+        }
+    }
+
+    /// Forgets the loaded Liked Songs list, so it is read again the next time it is shown.
+    private func invalidateLiked() {
+        likedGeneration += 1
+        likedNext = nil
+        likedLoadingMore = false
+        likedTotal = nil
+        liked = .idle
+    }
+
     // MARK: Playing
 
     /// Starts something playing and, if Spotify accepts it, shows Now Playing.
