@@ -89,6 +89,22 @@ struct PaneNotice: View {
     }
 }
 
+/// A heading for a group of rows inside a pane, such as "Songs" in search results.
+struct SectionHeader: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+            .padding(.bottom, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
 /// A spinner with one line under it, centred in its pane.
 struct PaneLoading: View {
     let text: String

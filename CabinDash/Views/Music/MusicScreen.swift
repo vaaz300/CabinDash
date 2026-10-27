@@ -12,19 +12,28 @@ struct MusicScreen: View {
     }
 
     var body: some View {
+        @Bindable var library = model.library
         let spotify = model.spotify
         Group {
             if spotify.phase == .signedIn {
                 VStack(spacing: 10) {
                     SectionBar()
                     if let problem = spotify.problem {
-                        Label(problem.message, systemImage: "exclamationmark.triangle.fill")
-                            .font(.system(size: 14, weight: .medium))
-                            .fixedSize(horizontal: false, vertical: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .glass(radius: 14)
+                        HStack(spacing: 10) {
+                            Label(problem.message, systemImage: "exclamationmark.triangle.fill")
+                                .font(.system(size: 14, weight: .medium))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            // "No device ready" is fixed by choosing one, so the way to do that is right here.
+                            if problem == .noActiveDevice {
+                                PillButton(title: "Devices", symbol: "speaker.wave.2.fill") {
+                                    model.library.devicePickerPresented = true
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .glass(radius: 14)
                     }
                     SectionContent()
                 }
@@ -37,6 +46,10 @@ struct MusicScreen: View {
         .padding(.trailing, CarLayout.edge)
         .padding(.bottom, CarLayout.edge)
         .padding(.top, routeBannerShowing ? 74 : CarLayout.edge)
+        .sheet(isPresented: $library.devicePickerPresented) {
+            DeviceSheet()
+                .preferredColorScheme(model.prefs.theme.colorScheme)
+        }
     }
 }
 
@@ -52,9 +65,9 @@ private struct SectionContent: View {
         case .liked:
             LikedPane()
         case .search:
-            PaneNotice(symbol: "magnifyingglass", title: "Search is coming next")
+            SearchPane()
         case .queue:
-            PaneNotice(symbol: "list.bullet", title: "The queue is coming next")
+            QueuePane()
         }
     }
 }
@@ -77,13 +90,21 @@ private struct SectionBar: View {
             }
             .scrollIndicators(.hidden)
 
-            if let device = model.spotify.nowPlaying?.deviceName, !device.isEmpty {
-                Label("Playing on \(device)", systemImage: "speaker.wave.2.fill")
+            // Which device is playing. Tapping it opens the list, so it is also how to pick one when none is ready.
+            let device = model.spotify.nowPlaying?.deviceName ?? ""
+            Button {
+                library.devicePickerPresented = true
+            } label: {
+                Label(device.isEmpty ? "Choose device" : "Playing on \(device)", systemImage: "speaker.wave.2.fill")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .frame(maxWidth: 200)
+                    .padding(.horizontal, 10)
+                    .frame(maxWidth: 220, minHeight: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(PressScaleStyle(scale: 0.95))
+            .accessibilityLabel(device.isEmpty ? "Choose device" : "Playing on \(device). Choose another device")
             SpotifyAttribution(uri: model.spotify.nowPlaying?.uri)
         }
     }

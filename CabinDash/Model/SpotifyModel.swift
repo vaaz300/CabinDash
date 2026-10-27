@@ -193,9 +193,53 @@ final class SpotifyModel {
     }
 
     /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
+    ///
+    /// When Spotify says no device is active, this looks at the devices it knows. With exactly one that takes commands, it
+    /// starts playing there. With several it does not guess: it leaves "no device ready" showing so the person can choose.
     @discardableResult
     func play(_ target: SpotifyPlayTarget) async -> Bool {
-        await command(SpotifyEndpoint.play(target))
+        guard phase == .signedIn else { return false }
+        var failure = await attempt(SpotifyEndpoint.play(target))
+        if failure == .noActiveDevice {
+            failure = await playOnTheOnlyDevice(target)
+        }
+        if let failure {
+            note(failure)
+        } else {
+            problem = nil
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        await refresh()
+        return failure == nil
+    }
+
+    /// Moves playback to a device and keeps playing there. True when Spotify accepted it.
+    @discardableResult
+    func transfer(to deviceID: String) async -> Bool {
+        await command(SpotifyEndpoint.transfer(to: deviceID, play: true))
+    }
+
+    /// Adds a song or episode to the end of the queue. True when Spotify accepted it.
+    @discardableResult
+    func addToQueue(uri: String) async -> Bool {
+        await command(SpotifyEndpoint.addToQueue(uri: uri))
+    }
+
+    /// Nil when Spotify accepted the request, otherwise why it did not. Remembers nothing: the caller decides what to show.
+    private func attempt(_ request: SpotifyRequest) async -> SpotifyFailure? {
+        do {
+            let reply = try await perform(request)
+            return reply.isSuccess ? nil : reply.failure
+        } catch {
+            return (error as? SpotifyFailure) ?? .offline
+        }
+    }
+
+    private func playOnTheOnlyDevice(_ target: SpotifyPlayTarget) async -> SpotifyFailure? {
+        guard let reply = try? await perform(SpotifyEndpoint.devices()), reply.isSuccess,
+              let devices = SpotifyLibrary.parseDevices(reply.data),
+              let device = SpotifyDevices.autoTarget(devices) else { return .noActiveDevice }
+        return await attempt(SpotifyEndpoint.play(target, deviceID: device.id))
     }
 
     /// Sends one command, then looks at the player again. True when Spotify accepted the command.

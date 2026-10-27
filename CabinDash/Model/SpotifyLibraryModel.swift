@@ -45,6 +45,14 @@ final class SpotifyLibraryModel {
     /// True once the profile has been asked for, whether or not Spotify answered.
     private(set) var profileChecked = false
 
+    /// What is typed in the Search section. Call `searchTextChanged()` after it changes.
+    var searchText = ""
+    private(set) var search: LoadState<SpotifySearchResults> = .idle
+    private(set) var queue: LoadState<SpotifyQueue> = .idle
+    private(set) var devices: LoadState<[SpotifyDevice]> = .idle
+    /// Whether the device list is showing. The device chip and the "no device ready" banner both open it.
+    var devicePickerPresented = false
+
     let spotify: SpotifyModel
     let toast: ToastCenter
 
@@ -80,6 +88,10 @@ final class SpotifyLibraryModel {
             }
         } catch {
             failure = (error as? SpotifyFailure) ?? .offline
+            // A request that was cancelled is not a connection problem, so it is not shown as one.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled {
+                return .failure(failure)
+            }
         }
         if report { spotify.report(failure) }
         return .failure(failure)
@@ -233,6 +245,98 @@ final class SpotifyLibraryModel {
             case .failure:
                 self.toast.show("Couldn't load more songs")
             }
+        }
+    }
+
+    // MARK: Search
+
+    private var searchQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Call whenever the text changes. Waits for a pause in typing, then searches for what is in the box by then.
+    func searchTextChanged() {
+        if searchQuery.isEmpty {
+            search = .idle
+            return
+        }
+        Task { await self.runSearch() }
+    }
+
+    /// Waits 400 ms, then searches for the text as it is now. If more was typed meanwhile, a newer call handles it,
+    /// and an answer to an older text is dropped.
+    func runSearch() async {
+        let query = searchQuery
+        guard !query.isEmpty else {
+            search = .idle
+            return
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        guard query == searchQuery else { return }
+        // Keep the old results on screen while the new ones load, rather than flashing a spinner on every pause.
+        if case .loaded = search {} else { search = .loading }
+        let outcome = await fetch(SpotifyEndpoint.search(query), read: SpotifyLibrary.parseSearch)
+        guard query == searchQuery else { return }
+        switch outcome {
+        case .success(let results):
+            search = .loaded(results)
+        case .failure(let failure):
+            search = .failed(failure)
+        }
+    }
+
+    // MARK: Queue
+
+    /// Reads the queue. Shows a spinner only the first time; later reads replace the list quietly.
+    func loadQueue() {
+        Task { await self.runLoadQueue() }
+    }
+
+    private func runLoadQueue() async {
+        if queue.isIdle { queue = .loading }
+        // Spotify answers 204 with no body when there is nothing to queue, which is an empty queue, not an error.
+        let outcome = await fetch(SpotifyEndpoint.queue()) { data in
+            data.isEmpty ? SpotifyQueue() : SpotifyLibrary.parseQueue(data)
+        }
+        switch outcome {
+        case .success(let value):
+            queue = .loaded(value)
+        case .failure(let failure):
+            queue = .failed(failure)
+        }
+    }
+
+    func addToQueue(_ track: SpotifyTrack) {
+        Task {
+            if await self.spotify.addToQueue(uri: track.uri) {
+                self.toast.show("Added to queue")
+                self.loadQueue()
+            }
+        }
+    }
+
+    // MARK: Devices
+
+    /// Reads the devices, showing a spinner only the first time.
+    func loadDevices() {
+        Task { await self.reloadDevices() }
+    }
+
+    func reloadDevices() async {
+        if devices.isIdle { devices = .loading }
+        switch await fetch(SpotifyEndpoint.devices(), read: SpotifyLibrary.parseDevices) {
+        case .success(let list):
+            devices = .loaded(list)
+        case .failure(let failure):
+            devices = .failed(failure)
+        }
+    }
+
+    /// Moves playback to `device` and keeps playing there.
+    func transfer(to device: SpotifyDevice) async {
+        if await spotify.transfer(to: device.id) {
+            toast.show("Playing on \(device.name)")
+            await reloadDevices()
         }
     }
 
