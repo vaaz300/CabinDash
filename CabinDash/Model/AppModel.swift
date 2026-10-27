@@ -17,9 +17,11 @@ final class AppModel {
     private(set) var installed: Set<String> = []
 
     let icons: IconStore
-    let toast = ToastCenter()
+    let toast: ToastCenter
     let device = DeviceStatus()
-    let spotify = SpotifyModel()
+    let spotify: SpotifyModel
+    /// Playlists, Liked Songs, search and the queue, for the Music screen.
+    let library: SpotifyLibraryModel
     let route = RouteModel()
 
     /// True while the car is going faster than about 8 km/h. Assigned only when it changes, so screens do not redraw on every GPS fix.
@@ -39,6 +41,11 @@ final class AppModel {
             prefs = Preferences.defaults(region: region)
         }
         icons = IconStore(country: StoreAPI.country(forRegion: region))
+        let toast = ToastCenter()
+        let spotify = SpotifyModel()
+        self.toast = toast
+        self.spotify = spotify
+        library = SpotifyLibraryModel(spotify: spotify, toast: toast)
     }
 
     // MARK: Driving lock
@@ -172,6 +179,13 @@ final class AppModel {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         prefs.noteLaunch(app)
         open(app.launchSequence, failure: "Couldn't open \(app.name)")
+    }
+
+    /// The "Open Spotify" link. With a URI it opens that track, album or playlist in the Spotify app (or its web page if the
+    /// app is not installed); without one it opens Spotify's home.
+    func openSpotify(uri: String? = nil) {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        open(SpotifyLink.openURLs(forURI: uri), failure: "Couldn't open Spotify")
     }
 
     func navigate(to place: Place) {

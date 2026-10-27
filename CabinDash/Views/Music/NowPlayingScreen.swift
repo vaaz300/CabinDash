@@ -3,22 +3,17 @@ import SwiftUI
 import UIKit
 
 /// What Spotify is playing, with the controls. Spotify itself keeps playing in its own app;
-/// this screen reads its state and sends it play, pause, next and previous.
-struct NowPlayingScreen: View {
+/// this pane reads its state and steers it. The Music screen supplies the padding around it.
+struct NowPlayingPane: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         let spotify = model.spotify
-        Group {
-            if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
-                PlayerView(spotify: spotify, playing: playing)
-            } else {
-                StatePanel(spotify: spotify)
-            }
+        if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
+            PlayerView(spotify: spotify, playing: playing)
+        } else {
+            StatePanel(spotify: spotify)
         }
-        .padding(.leading, CarLayout.railReserve)
-        .padding(.trailing, CarLayout.edge)
-        .padding(.vertical, CarLayout.edge)
     }
 }
 
@@ -61,8 +56,6 @@ private struct PlayerView: View {
                         .padding(.top, 10)
 
                     Spacer(minLength: 0)
-
-                    Footer(spotify: spotify, device: playing.deviceName)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -255,38 +248,11 @@ private struct ModeButton: View {
     }
 }
 
-/// Which device is playing, a way into the Spotify app, and any complaint from Spotify.
-private struct Footer: View {
-    let spotify: SpotifyModel
-    let device: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let problem = spotify.problem {
-                Label(problem.message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .labelStyle(.titleAndIcon)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 12) {
-                if let device, !device.isEmpty {
-                    Label("Playing on \(device)", systemImage: "speaker.wave.2.fill")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 0)
-                OpenSpotifyButton(compact: true)
-            }
-        }
-    }
-}
-
 // MARK: - Nothing to show yet
 
 /// Everything that is not "a song is playing": not set up, not connected, waiting, or nothing playing.
-private struct StatePanel: View {
+/// The Music screen shows it whole when Spotify is not connected, and inside Now Playing when nothing is playing.
+struct StatePanel: View {
     let spotify: SpotifyModel
 
     var body: some View {
@@ -299,7 +265,7 @@ private struct StatePanel: View {
                     title: "Spotify isn't set up in this build",
                     detail: "Cabin Dash needs a Spotify Client ID to show what's playing. The README explains how to add one."
                 )
-                OpenSpotifyButton(compact: false)
+                SpotifyAttribution(compact: false)
             case .signedOut:
                 message(
                     symbol: "music.note.list",
@@ -309,7 +275,7 @@ private struct StatePanel: View {
                 ActionButton(title: "Connect Spotify", symbol: "link", filled: true) {
                     Task { await spotify.signIn() }
                 }
-                OpenSpotifyButton(compact: false)
+                SpotifyAttribution(compact: false)
             case .needsReconnect:
                 message(
                     symbol: "arrow.triangle.2.circlepath",
@@ -328,16 +294,16 @@ private struct StatePanel: View {
                     message(
                         symbol: "pause.circle",
                         title: "Nothing is playing",
-                        detail: "Start a song in Spotify, then come back. Cabin Dash steers the Spotify app. It doesn't play music itself."
+                        detail: "Pick something from Playlists, Liked or Search. Spotify plays the sound, so keep the Spotify app running on this iPhone."
                     )
-                    OpenSpotifyButton(compact: false)
                 } else {
                     ProgressView()
                     Text("Asking Spotify\u{2026}")
                         .font(.system(size: 18, weight: .semibold))
                 }
             }
-            if let problem = spotify.problem {
+            // Once connected, the Music screen shows the complaint in a banner above the sections.
+            if spotify.phase != .signedIn, let problem = spotify.problem {
                 Label(problem.message, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 14, weight: .medium))
                     .multilineTextAlignment(.center)
@@ -390,33 +356,5 @@ private struct ActionButton: View {
                 }
         }
         .buttonStyle(PressScaleStyle(scale: 0.96))
-    }
-}
-
-/// Opens the Spotify app, where playlists and search live. Cabin Dash can't browse Spotify's library.
-private struct OpenSpotifyButton: View {
-    let compact: Bool
-    @Environment(AppModel.self) private var model
-
-    var body: some View {
-        if let spotify = Catalog.entry(id: "spotify") {
-            if compact {
-                Button {
-                    model.launch(spotify)
-                } label: {
-                    Label("Open Spotify", systemImage: "arrow.up.right.square")
-                        .font(.system(size: 14, weight: .semibold))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.primary.opacity(0.10), in: Capsule())
-                        .foregroundStyle(.primary)
-                }
-                .buttonStyle(PressScaleStyle(scale: 0.95))
-            } else {
-                ActionButton(title: "Open Spotify", symbol: "arrow.up.right.square", filled: false) {
-                    model.launch(spotify)
-                }
-            }
-        }
     }
 }

@@ -95,7 +95,7 @@ struct RootView: View {
         case .map:
             MapScreen()
         case .music:
-            NowPlayingScreen()
+            MusicScreen()
         case .drive:
             DriveView(landscape: true)
                 .padding(.leading, CarLayout.railReserve)

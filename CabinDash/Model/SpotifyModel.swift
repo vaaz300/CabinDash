@@ -186,12 +186,28 @@ final class SpotifyModel {
         await command(SpotifyEndpoint.setRepeat(target))
     }
 
-    private func command(_ request: SpotifyRequest) async {
-        guard phase == .signedIn else { return }
+    /// Turns shuffle on or off whether or not anything is playing yet. True when Spotify accepted it.
+    @discardableResult
+    func setShuffle(_ on: Bool) async -> Bool {
+        await command(SpotifyEndpoint.shuffle(on))
+    }
+
+    /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
+    @discardableResult
+    func play(_ target: SpotifyPlayTarget) async -> Bool {
+        await command(SpotifyEndpoint.play(target))
+    }
+
+    /// Sends one command, then looks at the player again. True when Spotify accepted the command.
+    @discardableResult
+    private func command(_ request: SpotifyRequest) async -> Bool {
+        guard phase == .signedIn else { return false }
+        var accepted = false
         do {
             let reply = try await perform(request)
             if reply.isSuccess {
                 problem = nil
+                accepted = true
             } else {
                 note(reply.failure)
             }
@@ -201,6 +217,7 @@ final class SpotifyModel {
         // Spotify applies a command a moment after it answers, so look again shortly.
         try? await Task.sleep(for: .milliseconds(400))
         await refresh()
+        return accepted
     }
 
     // MARK: Signing in
