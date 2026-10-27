@@ -6,6 +6,20 @@ import OSLog
 
 private let log = Logger(subsystem: "app.cabindash", category: "spotify")
 
+/// What Spotify answered to one request.
+struct SpotifyReply {
+    let data: Data
+    let status: Int
+    let retryAfter: String?
+
+    var isSuccess: Bool { (200..<300).contains(status) }
+
+    /// Why it did not work, in words a driver can act on. Only meaningful when `isSuccess` is false.
+    var failure: SpotifyFailure {
+        SpotifyFailure.classify(status: status, body: data, retryAfter: retryAfter)
+    }
+}
+
 /// Connects Cabin Dash to Spotify through its Web API: shows what the Spotify app is playing and sends play, pause, next and previous.
 /// Spotify keeps playing in its own app. This only reads and steers it, so it needs the Spotify app to be the active player.
 @MainActor @Observable
@@ -116,16 +130,16 @@ final class SpotifyModel {
     func refresh() async {
         guard phase == .signedIn else { return }
         do {
-            let reply = try await send("GET", "/v1/me/player", query: [("additional_types", "track,episode")])
+            let reply = try await perform(SpotifyEndpoint.player())
             if reply.status == 204 {
                 nowPlaying = nil
                 problem = nil
-            } else if (200..<300).contains(reply.status) {
+            } else if reply.isSuccess {
                 nowPlaying = SpotifyPlayback.parse(reply.data)
                 observedAt = Date()
                 problem = nil
             } else {
-                throw SpotifyFailure.classify(status: reply.status, body: reply.data, retryAfter: reply.retryAfter)
+                throw reply.failure
             }
             hasAnswered = true
         } catch {
@@ -141,30 +155,29 @@ final class SpotifyModel {
             nowPlaying?.isPlaying = !playing
             observedAt = Date()
         }
-        await command(playing ? "/v1/me/player/pause" : "/v1/me/player/play", method: "PUT")
+        await command(playing ? SpotifyEndpoint.pause() : SpotifyEndpoint.resume())
     }
 
     func skipNext() async {
-        await command("/v1/me/player/next", method: "POST")
+        await command(SpotifyEndpoint.next())
     }
 
     func skipPrevious() async {
-        await command("/v1/me/player/previous", method: "POST")
+        await command(SpotifyEndpoint.previous())
     }
 
     func seek(toSeconds seconds: Double) async {
-        let milliseconds = Int(max(0, seconds) * 1000)
-        await command("/v1/me/player/seek", method: "PUT", query: [("position_ms", String(milliseconds))])
+        await command(SpotifyEndpoint.seek(milliseconds: Int(max(0, seconds) * 1000)))
     }
 
-    private func command(_ path: String, method: String, query: [(String, String)] = []) async {
+    private func command(_ request: SpotifyRequest) async {
         guard phase == .signedIn else { return }
         do {
-            let reply = try await send(method, path, query: query)
-            if (200..<300).contains(reply.status) {
+            let reply = try await perform(request)
+            if reply.isSuccess {
                 problem = nil
             } else {
-                note(SpotifyFailure.classify(status: reply.status, body: reply.data, retryAfter: reply.retryAfter))
+                note(reply.failure)
             }
         } catch {
             handle(error)
@@ -228,34 +241,33 @@ final class SpotifyModel {
 
     // MARK: Network
 
-    private struct Reply {
-        let data: Data
-        let status: Int
-        let retryAfter: String?
-    }
-
-    private func send(_ method: String, _ path: String, query: [(String, String)] = []) async throws -> Reply {
+    /// Sends one request signed in as the person. A 401 refreshes the token once and tries again.
+    /// Throws when there is no answer at all (offline, not signed in); an answer with an error status is returned, not thrown.
+    func perform(_ request: SpotifyRequest) async throws -> SpotifyReply {
         var retried = false
         while true {
             let accessToken = try await validAccessToken()
-            var text = "https://api.spotify.com" + path
-            if !query.isEmpty { text += "?" + FormEncoding.encode(query) }
-            guard let url = URL(string: text) else { throw SpotifyFailure.http(0) }
+            guard let url = request.url() else { throw SpotifyFailure.http(0) }
 
-            var request = URLRequest(url: url)
-            request.httpMethod = method
-            request.setValue("Bearer " + accessToken, forHTTPHeaderField: "Authorization")
-            // Spotify answers "411 Length Required" to a PUT or POST with no body, so send an empty one.
-            if method != "GET" { request.httpBody = Data() }
+            var urlRequest = URLRequest(url: url)
+            urlRequest.httpMethod = request.method
+            urlRequest.setValue("Bearer " + accessToken, forHTTPHeaderField: "Authorization")
+            if let body = request.body {
+                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                urlRequest.httpBody = body
+            } else if request.method != "GET" {
+                // Spotify answers "411 Length Required" to a PUT, POST or DELETE with no body, so send an empty one.
+                urlRequest.httpBody = Data()
+            }
 
-            let (data, response) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: urlRequest)
             guard let http = response as? HTTPURLResponse else { throw SpotifyFailure.http(0) }
             if http.statusCode == 401, !retried {
                 retried = true
                 _ = try await refreshTokens()
                 continue
             }
-            return Reply(data: data, status: http.statusCode, retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
+            return SpotifyReply(data: data, status: http.statusCode, retryAfter: http.value(forHTTPHeaderField: "Retry-After"))
         }
     }
 
@@ -316,6 +328,11 @@ final class SpotifyModel {
         if let data = try? JSONEncoder().encode(fresh) {
             KeychainStore.write(data, account: Self.tokenAccount)
         }
+    }
+
+    /// For screens that call Spotify through `perform`: remembers a failure the same way the player does.
+    func report(_ error: Error) {
+        handle(error)
     }
 
     private func handle(_ error: Error) {
