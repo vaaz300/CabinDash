@@ -113,6 +113,20 @@ public enum SpotifyPlayback {
         (value as? NSNumber)?.doubleValue ?? 0
     }
 
+    /// A picture for a list row: the smallest one that is at least 120 px wide, so it stays sharp,
+    /// or the largest when every picture is smaller than that.
+    static func thumbnail(in images: [[String: Any]]) -> URL? {
+        var best: (width: Double, url: URL)?
+        for image in images {
+            guard let text = image["url"] as? String, let url = URL(string: text) else { continue }
+            let width = number(image["width"])
+            if width >= 120, width < (best?.width ?? .infinity) {
+                best = (width, url)
+            }
+        }
+        return best?.url ?? largestImage(in: images)
+    }
+
     /// The widest picture. Spotify lists them largest first, but that is not promised.
     static func largestImage(in images: [[String: Any]]) -> URL? {
         var best: (width: Double, url: URL)?
