@@ -22,6 +22,10 @@ final class AppModel {
     let spotify = SpotifyModel()
     let route = RouteModel()
 
+    /// True while the car is going faster than about 8 km/h. Assigned only when it changes, so screens do not redraw on every GPS fix.
+    private(set) var isMoving = false
+    @ObservationIgnored private var lock = DrivingLock()
+
     @ObservationIgnored private let defaults: UserDefaults
     private static let prefsKey = "cabin-dash.prefs.v1"
 
@@ -35,6 +39,19 @@ final class AppModel {
             prefs = Preferences.defaults(region: region)
         }
         icons = IconStore(country: StoreAPI.country(forRegion: region))
+    }
+
+    // MARK: Driving lock
+
+    /// Typing, such as music search, is switched off while the car is moving, unless Passenger mode is on.
+    var typingLocked: Bool {
+        isMoving && !prefs.passengerMode
+    }
+
+    /// Call with every GPS fix. `speed` is metres per second, or nil when there is no usable fix.
+    func noteMotion(speed: Double?, at time: Double) {
+        lock.update(speed: speed, at: time)
+        if lock.isMoving != isMoving { isMoving = lock.isMoving }
     }
 
     // MARK: Shelf

@@ -65,6 +65,7 @@ struct RootView: View {
             }
         }
         .onChange(of: location.fixCount) { _, _ in
+            model.noteMotion(speed: location.hasFix ? location.speed : nil, at: Date().timeIntervalSinceReferenceDate)
             if let latitude = location.latitude, let longitude = location.longitude {
                 model.route.update(latitude: latitude, longitude: longitude)
             }

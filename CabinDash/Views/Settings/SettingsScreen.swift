@@ -41,10 +41,14 @@ struct SettingsScreen: View {
                     }
                 }
                 Toggle("Keep screen on", isOn: $model.prefs.keepAwake)
+                Toggle("Passenger mode", isOn: $model.prefs.passengerMode)
             } header: {
                 Text("Driving")
             } footer: {
-                Text("The Map screen plans routes with Apple Maps. \u{201C}Open in\u{2026}\u{201D} hands the trip to this app, which does the real turn-by-turn. Google Maps and Waze use their website if they aren't installed.")
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("The Map screen plans routes with Apple Maps. \u{201C}Open in\u{2026}\u{201D} hands the trip to this app, which does the real turn-by-turn. Google Maps and Waze use their website if they aren't installed.")
+                    Text("Cabin Dash turns off typing, such as music search, while you are moving faster than about 8 km/h. Turn this on if someone else is using the screen.")
+                }
             }
 
             Section {
