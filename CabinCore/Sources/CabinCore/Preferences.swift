@@ -68,11 +68,13 @@ public struct Preferences: Codable, Equatable, Sendable {
     public var places: [Place]
     /// Most recently opened app ids, newest first.
     public var recent: [String]
+    /// Someone other than the driver is using the screen, so typing stays available while the car moves.
+    public var passengerMode: Bool
 
     public init(
         units: Units = .kmh, navApp: NavApp = .apple, theme: ThemeChoice = .auto, wallpaper: Wallpaper = .dusk,
         keepAwake: Bool = true, showOtherApps: Bool = false, autoDetect: Bool = true, added: [AppEntry] = [], hidden: Set<String> = [],
-        places: [Place] = Preferences.starterPlaces(), recent: [String] = []
+        places: [Place] = Preferences.starterPlaces(), recent: [String] = [], passengerMode: Bool = false
     ) {
         self.units = units
         self.navApp = navApp
@@ -85,6 +87,7 @@ public struct Preferences: Codable, Equatable, Sendable {
         self.hidden = hidden
         self.places = places
         self.recent = recent
+        self.passengerMode = passengerMode
     }
 
     public static func starterPlaces() -> [Place] {
@@ -96,7 +99,7 @@ public struct Preferences: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case units, navApp, theme, wallpaper, keepAwake, showOtherApps, autoDetect, added, hidden, places, recent
+        case units, navApp, theme, wallpaper, keepAwake, showOtherApps, autoDetect, added, hidden, places, recent, passengerMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -113,7 +116,8 @@ public struct Preferences: Codable, Equatable, Sendable {
             added: try c.decodeIfPresent([AppEntry].self, forKey: .added) ?? base.added,
             hidden: try c.decodeIfPresent(Set<String>.self, forKey: .hidden) ?? base.hidden,
             places: try c.decodeIfPresent([Place].self, forKey: .places) ?? base.places,
-            recent: try c.decodeIfPresent([String].self, forKey: .recent) ?? base.recent
+            recent: try c.decodeIfPresent([String].self, forKey: .recent) ?? base.recent,
+            passengerMode: try c.decodeIfPresent(Bool.self, forKey: .passengerMode) ?? base.passengerMode
         )
     }
 
