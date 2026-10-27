@@ -50,7 +50,7 @@ import Testing
         #expect(text.contains("code_challenge_method=S256"))
         #expect(text.contains("code_challenge=chal"))
         #expect(text.contains("state=st"))
-        #expect(text.contains("scope=user-read-playback-state%20user-modify-playback-state%20user-read-currently-playing"))
+        #expect(text.contains("scope=user-read-playback-state%20user-modify-playback-state%20user-read-currently-playing%20playlist-read-private%20playlist-read-collaborative%20user-library-read%20user-library-modify"))
     }
 
     @Test func codeBodyHasTheVerifierButNoSecret() {
@@ -132,5 +132,59 @@ import Testing
         let token = SpotifyToken(accessToken: "a", refreshToken: "r", expiresAt: now)
         let data = try JSONEncoder().encode(token)
         #expect(try JSONDecoder().decode(SpotifyToken.self, from: data) == token)
+    }
+}
+
+@Suite struct SpotifyScopeTests {
+    private let now = Date(timeIntervalSinceReferenceDate: 1_000_000)
+    private let everyScope = SpotifyAuth.scopes.joined(separator: " ")
+
+    @Test func requiredScopesCoverLibraryAndPlaylists() {
+        #expect(SpotifyAuth.scopes == [
+            "user-read-playback-state", "user-modify-playback-state", "user-read-currently-playing",
+            "playlist-read-private", "playlist-read-collaborative", "user-library-read", "user-library-modify"
+        ])
+    }
+
+    @Test func tokenAnswerCarriesItsScope() throws {
+        let json = #"{"access_token":"AT","expires_in":3600,"refresh_token":"RT","scope":"a b"}"#
+        let token = try #require(SpotifyToken.parse(Data(json.utf8), now: now, previousRefresh: nil))
+        #expect(token.scope == "a b")
+    }
+
+    @Test func refreshWithoutScopeKeepsThePreviousScope() throws {
+        let json = #"{"access_token":"AT2","expires_in":1800}"#
+        let token = try #require(SpotifyToken.parse(Data(json.utf8), now: now, previousRefresh: "OLD", previousScope: "a b"))
+        #expect(token.scope == "a b")
+    }
+
+    @Test func oldSavedTokenWithoutScopeNeedsReconnect() throws {
+        let old = #"{"accessToken":"a","refreshToken":"r","expiresAt":0}"#
+        let token = try JSONDecoder().decode(SpotifyToken.self, from: Data(old.utf8))
+        #expect(token.scope == nil)
+        #expect(!token.hasAllRequiredScopes)
+        #expect(SpotifyAuth.missingScopes(granted: nil) == SpotifyAuth.scopes)
+    }
+
+    @Test func tokenWithEveryScopeIsFine() {
+        let token = SpotifyToken(accessToken: "a", refreshToken: "r", expiresAt: now, scope: everyScope)
+        #expect(token.hasAllRequiredScopes)
+    }
+
+    @Test func missingScopesNamesTheOnesLeftOut() {
+        let granted = SpotifyAuth.scopes.filter { $0 != "user-library-modify" }.joined(separator: " ")
+        #expect(SpotifyAuth.missingScopes(granted: granted) == ["user-library-modify"])
+    }
+
+    @Test func scopeComparisonIgnoresOrderAndExtraSpaces() {
+        let jumbled = "  user-library-modify   user-library-read playlist-read-collaborative playlist-read-private "
+            + "user-read-currently-playing user-modify-playback-state user-read-playback-state  "
+        #expect(SpotifyAuth.missingScopes(granted: jumbled).isEmpty)
+    }
+
+    @Test func aScopeSurvivesBeingSavedAndLoaded() throws {
+        let token = SpotifyToken(accessToken: "a", refreshToken: "r", expiresAt: now, scope: everyScope)
+        let data = try JSONEncoder().encode(token)
+        #expect(try JSONDecoder().decode(SpotifyToken.self, from: data).scope == everyScope)
     }
 }
