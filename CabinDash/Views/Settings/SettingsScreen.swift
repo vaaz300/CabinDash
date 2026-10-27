@@ -18,6 +18,9 @@ struct SettingsScreen: View {
         if model.spotify.phase == .notConfigured {
             return "This copy of Cabin Dash was built without a Spotify Client ID, so the Music screen can't connect. See docs/SPOTIFY-SETUP.md in the repository."
         }
+        if model.spotify.phase == .needsReconnect {
+            return "Cabin Dash now browses your playlists and likes songs, which needs a few more permissions. You only do this once."
+        }
         return "Needs a Spotify Premium account. Cabin Dash shows what the Spotify app is playing and sends play, pause and skip. Spotify keeps playing in its own app."
     }
 
@@ -51,6 +54,10 @@ struct SettingsScreen: View {
                     EmptyView()
                 case .signedOut:
                     Button("Connect Spotify") {
+                        Task { await self.model.spotify.signIn() }
+                    }
+                case .needsReconnect:
+                    Button("Connect Spotify again") {
                         Task { await self.model.spotify.signIn() }
                     }
                 case .signingIn:

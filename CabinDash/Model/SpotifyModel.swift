@@ -14,6 +14,8 @@ final class SpotifyModel {
         /// No client ID was built into this copy of the app.
         case notConfigured
         case signedOut
+        /// Signed in with an older, smaller set of permissions. Playlists and likes need one more sign-in.
+        case needsReconnect
         case signingIn
         case signedIn
     }
@@ -55,13 +57,20 @@ final class SpotifyModel {
         clientID = configured
         session = URLSession(configuration: configuration)
         token = saved
-        phase = configured.isEmpty ? .notConfigured : (saved == nil ? .signedOut : .signedIn)
+        if configured.isEmpty {
+            phase = .notConfigured
+        } else if let saved {
+            phase = saved.hasAllRequiredScopes ? .signedIn : .needsReconnect
+        } else {
+            phase = .signedOut
+        }
     }
 
     var statusText: String {
         switch phase {
         case .notConfigured: return "Not set up"
         case .signedOut: return "Not connected"
+        case .needsReconnect: return "Needs new permissions"
         case .signingIn: return "Connecting\u{2026}"
         case .signedIn: return "Connected"
         }
@@ -168,7 +177,8 @@ final class SpotifyModel {
     // MARK: Signing in
 
     func signIn() async {
-        guard phase == .signedOut else { return }
+        guard phase == .signedOut || phase == .needsReconnect else { return }
+        let before = phase
         problem = nil
         phase = .signingIn
 
@@ -177,7 +187,7 @@ final class SpotifyModel {
         guard let url = SpotifyAuth.authorizeURL(
             clientID: clientID, challenge: PKCE.challenge(forVerifier: verifier), state: state
         ) else {
-            phase = .signedOut
+            phase = before
             problem = .http(0)
             return
         }
@@ -191,10 +201,10 @@ final class SpotifyModel {
                 updatePolling()
                 await refresh()
             case .denied, .mismatch, .invalid:
-                phase = .signedOut
+                phase = before
             }
         } catch {
-            phase = .signedOut
+            phase = before
             if let sessionError = error as? ASWebAuthenticationSessionError, sessionError.code == .canceledLogin {
                 return // the person closed the sheet
             }
@@ -276,7 +286,7 @@ final class SpotifyModel {
         request.httpBody = SpotifyAuth.refreshBody(clientID: clientID, refreshToken: current.refreshToken)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-              let fresh = SpotifyToken.parse(data, now: Date(), previousRefresh: current.refreshToken) else {
+              let fresh = SpotifyToken.parse(data, now: Date(), previousRefresh: current.refreshToken, previousScope: current.scope) else {
             throw SpotifyFailure.notSignedIn
         }
         store(fresh)
@@ -292,9 +302,12 @@ final class SpotifyModel {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw SpotifyFailure.http(0) }
         guard (200..<300).contains(http.statusCode),
-              let fresh = SpotifyToken.parse(data, now: Date(), previousRefresh: nil) else {
+              var fresh = SpotifyToken.parse(data, now: Date(), previousRefresh: nil) else {
             throw SpotifyFailure.http(http.statusCode)
         }
+        // Spotify names the granted permissions in its answer. If it ever left them out, this sign-in asked for all of them,
+        // so assume they were given rather than asking the person to sign in again in a loop.
+        if fresh.scope == nil { fresh.scope = SpotifyAuth.scopes.joined(separator: " ") }
         store(fresh)
     }
 

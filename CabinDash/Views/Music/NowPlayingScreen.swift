@@ -253,6 +253,15 @@ private struct StatePanel: View {
                     Task { await spotify.signIn() }
                 }
                 OpenSpotifyButton(compact: false)
+            case .needsReconnect:
+                message(
+                    symbol: "arrow.triangle.2.circlepath",
+                    title: "Connect Spotify again",
+                    detail: "Cabin Dash now browses your playlists and likes songs, which needs a few more permissions. You only do this once."
+                )
+                ActionButton(title: "Connect Spotify", symbol: "link", filled: true) {
+                    Task { await spotify.signIn() }
+                }
             case .signingIn:
                 ProgressView()
                 Text("Connecting\u{2026}")

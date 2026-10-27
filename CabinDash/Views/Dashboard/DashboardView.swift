@@ -165,6 +165,7 @@ private struct MusicWidget: View {
         switch phase {
         case .notConfigured: return "Spotify isn't set up"
         case .signedOut: return "Connect Spotify"
+        case .needsReconnect: return "Connect Spotify again"
         case .signingIn: return "Connecting\u{2026}"
         case .signedIn: return "Nothing playing"
         }
