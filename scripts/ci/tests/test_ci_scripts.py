@@ -4,13 +4,18 @@ IMPORTANT: the sample logs and the sample project below are written by hand from
 print and produce. They were not captured from a real run. They prove the scripts behave correctly on that
 input; whether Xcode's real output matches is only confirmed by the first run on GitHub Actions.
 """
+import contextlib
+import io
 import json
 import os
 import pathlib
 import shutil
+import struct
 import sys
 import tempfile
 import unittest
+import zlib
+from unittest import mock
 
 HERE = pathlib.Path(__file__).resolve().parent
 CI = HERE.parent
@@ -114,6 +119,50 @@ class SummarizeTests(unittest.TestCase):
 
     def test_missing_log_is_not_a_crash(self):
         self.assertEqual(summarize_xcodebuild.main(["/nonexistent.log", "--title", "Build"]), 0)
+
+
+class WarningAnnotationTests(unittest.TestCase):
+    """Compiler warnings in our own files become GitHub annotations, which can be read without logging in.
+    The job summary has them too, but only a signed-in user can open that."""
+
+    WORKSPACE = "/Users/runner/work/CabinDash/CabinDash"
+
+    def run_main(self, text):
+        env = {"GITHUB_ACTIONS": "true", "GITHUB_WORKSPACE": self.WORKSPACE, "GITHUB_STEP_SUMMARY": ""}
+        with tempfile.TemporaryDirectory() as tmp:
+            log = pathlib.Path(tmp) / "build.log"
+            log.write_text(text)
+            buffer = io.StringIO()
+            with mock.patch.dict(os.environ, env), contextlib.redirect_stdout(buffer):
+                code = summarize_xcodebuild.main([str(log), "--title", "App build", "--out", tmp])
+        return code, [line for line in buffer.getvalue().splitlines() if line.startswith("::")]
+
+    def test_a_warning_in_our_code_is_annotated_with_file_and_line(self):
+        log = f"{self.WORKSPACE}/CabinDash/Views/Map/MapScreen.swift:61:9: warning: variable 'a' was never used\n** BUILD SUCCEEDED **\n"
+        code, lines = self.run_main(log)
+        self.assertEqual(code, 0)
+        self.assertIn(
+            "::warning file=CabinDash/Views/Map/MapScreen.swift,line=61,col=9,title=App build::variable 'a' was never used",
+            lines,
+        )
+
+    def test_a_warning_from_outside_the_repository_is_not_annotated(self):
+        log = "/Applications/Xcode.app/Contents/Developer/SDK/Foo.swiftinterface:3:1: warning: not ours\n** BUILD SUCCEEDED **\n"
+        _, lines = self.run_main(log)
+        self.assertEqual([line for line in lines if line.startswith("::warning")], [])
+
+    def test_at_most_ten_warnings_are_annotated(self):
+        log = "".join(
+            f"{self.WORKSPACE}/CabinDash/Model/AppModel.swift:{n}:5: warning: unused {n}\n" for n in range(1, 16)
+        ) + "** BUILD SUCCEEDED **\n"
+        _, lines = self.run_main(log)
+        self.assertEqual(len([line for line in lines if line.startswith("::warning")]), 10)
+
+    def test_errors_are_still_annotated_and_the_exit_code_is_still_zero(self):
+        log = f"{self.WORKSPACE}/CabinDash/Views/RootView.swift:44:15: error: cannot find 'x' in scope\n** BUILD FAILED **\n"
+        code, lines = self.run_main(log)
+        self.assertEqual(code, 0)
+        self.assertEqual(len([line for line in lines if line.startswith("::error")]), 1)
 
 
 class CheckTestsTests(unittest.TestCase):
@@ -379,6 +428,48 @@ class RepoLayoutTests(unittest.TestCase):
         with (repo / "project.yml").open("a") as handle:
             handle.write("\n    DEVELOPMENT_TEAM: ABCDE12345\n")
         self.assertEqual(check_repo.main(repo), 1)
+
+
+ICON = "CabinDash/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+
+
+def png_bytes(width, height, color_type, extra_chunks=()):
+    """A valid 8-bit PNG of one flat colour. color_type 2 is RGB, 6 is RGBA."""
+    def chunk(kind, data):
+        body = kind + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
+
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}[color_type]
+    raw = (b"\x00" + b"\x10" * (width * channels)) * height
+    header = struct.pack(">IIBBBBB", width, height, 8, color_type, 0, 0, 0)
+    extras = b"".join(chunk(kind, data) for kind, data in extra_chunks)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + extras + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
+
+
+class AppIconTests(unittest.TestCase):
+    """iOS refuses an app icon that is not 1024 x 1024 or that has transparency. Catch that before an upload does."""
+
+    copy_repo = RepoLayoutTests.copy_repo
+
+    def with_icon(self, data):
+        repo = self.copy_repo()
+        (repo / ICON).write_bytes(data)
+        return repo
+
+    def test_a_plain_1024_rgb_icon_passes(self):
+        self.assertEqual(check_repo.main(self.with_icon(png_bytes(1024, 1024, 2))), 0)
+
+    def test_an_icon_with_an_alpha_channel_is_refused(self):
+        self.assertEqual(check_repo.main(self.with_icon(png_bytes(1024, 1024, 6))), 1)
+
+    def test_an_icon_with_a_transparency_chunk_is_refused(self):
+        self.assertEqual(check_repo.main(self.with_icon(png_bytes(1024, 1024, 2, [(b"tRNS", b"\x00\x00\x00\x00\x00\x00")]))), 1)
+
+    def test_an_icon_of_the_wrong_size_is_refused(self):
+        self.assertEqual(check_repo.main(self.with_icon(png_bytes(512, 512, 2))), 1)
+
+    def test_a_file_that_is_not_a_png_is_refused(self):
+        self.assertEqual(check_repo.main(self.with_icon(b"not a png at all")), 1)
 
 
 class PackageSchemeTests(unittest.TestCase):

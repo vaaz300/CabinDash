@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Turns a raw xcodebuild / swift test log into something readable.
 
-  * prints GitHub error annotations (they appear at the top of the run page and on the changed file),
+  * prints GitHub error annotations, and warning annotations for our own files (they appear at the top of the run page and on the changed file),
   * appends a short report to the job summary,
   * writes <out>/<name>-errors.txt: a plain block to paste straight into Claude.
 
@@ -22,6 +22,7 @@ TESTING_ISSUE = re.compile(r"Test (?P<name>.+?) recorded an issue at (?P<file>[^
 FAILED_TEST_CASE = re.compile(r"^Test Case '(?P<name>.+)' failed")
 MARKERS = ("** BUILD SUCCEEDED **", "** BUILD FAILED **", "** TEST SUCCEEDED **", "** TEST FAILED **")
 MAX_ANNOTATIONS = 10   # GitHub shows at most 10 error annotations per step
+MAX_WARNING_ANNOTATIONS = 10
 MAX_LISTED = 30
 
 
@@ -129,6 +130,12 @@ def main(argv=None) -> int:
     for item in errors[:MAX_ANNOTATIONS]:
         ghactions.error(item["msg"] + ("".join(f"\n{n}" for n in item["notes"])), file=item["file"],
                         line=item["line"], col=item["col"], title=args.title)
+
+    # Warnings in our own files too. The job summary lists every warning, but only a signed-in user can open it,
+    # and annotations can be read from GitHub's public API. Warnings from the SDK or packages (absolute paths) are left out.
+    ours = [w for w in warnings if w["file"] and not w["file"].startswith("/")]
+    for item in ours[:MAX_WARNING_ANNOTATIONS]:
+        ghactions.warning(item["msg"], file=item["file"], line=item["line"], col=item["col"], title=args.title)
 
     out = pathlib.Path(args.out)
     out.mkdir(parents=True, exist_ok=True)

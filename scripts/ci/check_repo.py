@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """Fails early, with a plain message, when the repository is not laid out the way the build expects.
 
-Catches the two mistakes most likely on a first upload from Windows:
+Catches the mistakes most likely on a first upload from Windows:
   * the project folder was uploaded instead of its contents, so project.yml is one level too deep;
-  * signing material (a .p8 key, a .p12 certificate, a provisioning profile) ended up in the repository.
+  * signing material (a .p8 key, a .p12 certificate, a provisioning profile) ended up in the repository;
+  * the app icon is one iOS refuses: not 1024 x 1024, or with transparency.
 """
 import pathlib
 import re
+import struct
 import sys
 
 import ghactions
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 
+ICON = "CabinDash/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
 REQUIRED = [
     "project.yml",
     "CabinCore/Package.swift",
     "CabinDash/CabinDashApp.swift",
     "CabinDash/PrivacyInfo.xcprivacy",
-    "CabinDash/Assets.xcassets/AppIcon.appiconset/AppIcon.png",
+    ICON,
     "Config/Info.plist",
     "Config/Signing.xcconfig",
 ]
@@ -32,6 +37,34 @@ SKIP_DIRS = {".git", ".build", "build", "DerivedData", "ci-artifacts", "node_mod
 FORBIDDEN_IN_PROJECT_YML = re.compile(
     r"^\s*(DEVELOPMENT_TEAM|CODE_SIGN_IDENTITY|PROVISIONING_PROFILE\w*|CODE_SIGN_STYLE)\s*:", re.M
 )
+
+
+def icon_problem(path: pathlib.Path):
+    """Why iOS would refuse this app icon, or None. It must be a 1024 x 1024 PNG in plain RGB, with no transparency."""
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return "could not be read."
+    if not data.startswith(PNG_SIGNATURE):
+        return "is not a PNG file."
+    width = height = color = None
+    kinds = set()
+    position = len(PNG_SIGNATURE)
+    while position + 8 <= len(data):
+        length, kind = struct.unpack(">I4s", data[position:position + 8])
+        kinds.add(kind)
+        if kind == b"IHDR" and length >= 13:
+            width, height, _depth, color = struct.unpack(">IIBB", data[position + 8:position + 18])
+        position += 12 + length
+    if width is None:
+        return "is not a readable PNG (no header)."
+    if (width, height) != (1024, 1024):
+        return f"is {width} x {height} pixels; an app icon must be 1024 x 1024."
+    if color in (4, 6) or b"tRNS" in kinds:
+        return "has transparency, and iOS refuses app icons with transparency. Save it as RGB with no alpha channel."
+    if color != 2:
+        return f"must be a full-colour RGB PNG (colour type 2); this one is colour type {color}."
+    return None
 
 
 def walk(root: pathlib.Path):
@@ -56,6 +89,12 @@ def main(root: pathlib.Path = ROOT) -> int:
             )
         else:
             problems.append("Missing from the repository: " + ", ".join(missing))
+
+    icon = root / ICON
+    if icon.exists():
+        problem = icon_problem(icon)
+        if problem:
+            problems.append(f"{ICON} {problem}")
 
     for path in walk(root):
         rel = path.relative_to(root).as_posix()
