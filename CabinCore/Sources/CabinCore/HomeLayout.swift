@@ -61,9 +61,10 @@ public enum HomeLayout {
 
     public static let addApps = HomeItem(id: "add-apps", title: "Add Apps", kind: .addApps, symbol: "plus", tone: .blue)
 
-    /// Phone and Messages hand off to the system apps until Cabin Dash has screens of its own for them.
+    /// Messages hands off to the system app until Cabin Dash has a screen of its own for it.
+    /// There is no Phone link on purpose: iOS has no public link that opens the Phone app, and a bare `tel://` only shows
+    /// iOS's Call prompt with no number in it. Phone comes back as a screen of its own, where every call has a number.
     public static let systemLinks: [HomeItem] = [
-        link("phone", "Phone", "tel://", "phone.fill", .green),
         link("messages", "Messages", "sms://", "message.fill", .green)
     ].compactMap { $0 }
 
