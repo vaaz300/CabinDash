@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import CabinCore
 
 /// The tall frosted bar down the left edge: the time, the connection and battery, then the same buttons on every screen.

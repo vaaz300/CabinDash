@@ -164,7 +164,7 @@ struct SettingsScreen: View {
         .confirmationDialog("Reset apps?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Reset apps", role: .destructive) { model.resetApps() }
         } message: {
-            Text("This clears the apps you added, the ones you hid, and your recent apps. Places and settings stay.")
+            Text("This clears the apps you added and the ones you hid. Places and settings stay.")
         }
     }
 }

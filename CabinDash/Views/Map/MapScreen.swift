@@ -50,6 +50,10 @@ struct MapScreen: View {
             DestinationSearchSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
         }
+        .onAppear {
+            // Coming back from another screen builds this view again with the default camera. Frame it for where the route is now.
+            if let position = framing(for: route.phase, route: route) { camera = position }
+        }
         .onChange(of: route.phase) { _, phase in
             moveCamera(for: phase, route: route)
         }
@@ -66,20 +70,25 @@ struct MapScreen: View {
         .mapControlVisibility(.hidden)
     }
 
+    /// Where the camera belongs at this stage of the route, or nil to leave it where it is.
+    private func framing(for phase: RouteModel.Phase, route: RouteModel) -> MapCameraPosition? {
+        switch phase {
+        case .preview:
+            guard let rect = route.route?.polyline.boundingMapRect else { return nil }
+            return MapCameraPosition.rect(Self.leaveRoomForPanel(rect))
+        case .guiding:
+            return MapCameraPosition.userLocation(followsHeading: true, fallback: .automatic)
+        case .idle:
+            return MapCameraPosition.userLocation(followsHeading: false, fallback: .automatic)
+        case .loading, .arrived:
+            return nil
+        }
+    }
+
     private func moveCamera(for phase: RouteModel.Phase, route: RouteModel) {
+        guard let position = framing(for: phase, route: route) else { return }
         withAnimation(.easeInOut(duration: 0.7)) {
-            switch phase {
-            case .preview:
-                if let rect = route.route?.polyline.boundingMapRect {
-                    camera = .rect(Self.leaveRoomForPanel(rect))
-                }
-            case .guiding:
-                camera = .userLocation(followsHeading: true, fallback: .automatic)
-            case .idle:
-                camera = .userLocation(followsHeading: false, fallback: .automatic)
-            case .loading, .arrived:
-                break
-            }
+            camera = position
         }
     }
 
