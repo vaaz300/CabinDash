@@ -88,6 +88,131 @@ private let episodeJSON = """
     }
 }
 
+private func playerJSON(
+    shuffle: String = #""shuffle_state": true,"#,
+    repeatState: String = #""repeat_state": "context","#,
+    context: String = #""context": { "uri": "spotify:playlist:p1", "type": "playlist" },"#,
+    actions: String = #""actions": { "disallows": { "skipping_prev": true, "resuming": true } },"#
+) -> Data {
+    Data("""
+    {
+      "device": { "name": "Test iPhone" },
+      "is_playing": true,
+      \(shuffle)
+      \(repeatState)
+      \(context)
+      \(actions)
+      "progress_ms": 1000,
+      "item": {
+        "id": "abc123",
+        "uri": "spotify:track:abc123",
+        "name": "Song Title",
+        "duration_ms": 200000,
+        "artists": [ { "name": "First Artist" } ],
+        "album": { "name": "Album Name", "uri": "spotify:album:alb1", "images": [] }
+      }
+    }
+    """.utf8)
+}
+
+@Suite struct SpotifyPlaybackStateTests {
+    @Test func readsShuffleRepeatAndContext() throws {
+        let playing = try #require(SpotifyPlayback.parse(playerJSON()))
+        #expect(playing.shuffle)
+        #expect(playing.repeatMode == .context)
+        #expect(playing.contextURI == "spotify:playlist:p1")
+    }
+
+    @Test func readsTheTrackAndAlbumURIs() throws {
+        let playing = try #require(SpotifyPlayback.parse(playerJSON()))
+        #expect(playing.uri == "spotify:track:abc123")
+        #expect(playing.albumURI == "spotify:album:alb1")
+    }
+
+    @Test func readsDisallowedActions() throws {
+        let playing = try #require(SpotifyPlayback.parse(playerJSON()))
+        #expect(playing.disallows == ["skipping_prev", "resuming"])
+        #expect(!playing.canSkipPrevious)
+        #expect(playing.canSkipNext)
+        #expect(playing.canSeek)
+        #expect(playing.canShuffle)
+        #expect(playing.canRepeat)
+    }
+
+    @Test func aFalseDisallowDoesNotDisable() throws {
+        let actions = #""actions": { "disallows": { "skipping_next": false, "seeking": false, "toggling_shuffle": false } },"#
+        let playing = try #require(SpotifyPlayback.parse(playerJSON(actions: actions)))
+        #expect(playing.disallows.isEmpty)
+        #expect(playing.canSkipNext)
+        #expect(playing.canSeek)
+        #expect(playing.canShuffle)
+    }
+
+    @Test func eachDisallowTurnsOffItsOwnControl() throws {
+        func parsed(_ keys: String) throws -> NowPlaying {
+            let actions = "\"actions\": { \"disallows\": { \(keys) } },"
+            return try #require(SpotifyPlayback.parse(playerJSON(actions: actions)))
+        }
+        #expect(try !parsed(#""skipping_next": true"#).canSkipNext)
+        #expect(try !parsed(#""seeking": true"#).canSeek)
+        #expect(try !parsed(#""toggling_shuffle": true"#).canShuffle)
+    }
+
+    @Test func repeatIsOffOnlyWhenBothRepeatTogglesAreDisallowed() throws {
+        func parsed(_ keys: String) throws -> NowPlaying {
+            let actions = "\"actions\": { \"disallows\": { \(keys) } },"
+            return try #require(SpotifyPlayback.parse(playerJSON(actions: actions)))
+        }
+        #expect(try parsed(#""toggling_repeat_context": true"#).canRepeat)
+        #expect(try parsed(#""toggling_repeat_track": true"#).canRepeat)
+        #expect(try !parsed(#""toggling_repeat_context": true, "toggling_repeat_track": true"#).canRepeat)
+    }
+
+    @Test func missingFieldsDefaultSafely() throws {
+        let playing = try #require(SpotifyPlayback.parse(Data(trackJSON.utf8)))
+        #expect(!playing.shuffle)
+        #expect(playing.repeatMode == .off)
+        #expect(playing.disallows.isEmpty)
+        #expect(playing.contextURI == nil)
+        #expect(playing.canSkipNext)
+        #expect(playing.canSkipPrevious)
+        #expect(playing.canSeek)
+        #expect(playing.canShuffle)
+        #expect(playing.canRepeat)
+    }
+
+    @Test func aNullContextOrActionsIsNone() throws {
+        let playing = try #require(SpotifyPlayback.parse(playerJSON(context: #""context": null,"#, actions: #""actions": null,"#)))
+        #expect(playing.contextURI == nil)
+        #expect(playing.disallows.isEmpty)
+    }
+
+    @Test func anUnknownRepeatWordCountsAsOff() throws {
+        let playing = try #require(SpotifyPlayback.parse(playerJSON(repeatState: #""repeat_state": "sideways","#)))
+        #expect(playing.repeatMode == .off)
+    }
+
+    @Test func aTrackWithoutAnAlbumURIHasNone() throws {
+        let playing = try #require(SpotifyPlayback.parse(Data(trackJSON.utf8)))
+        #expect(playing.uri == nil)
+        #expect(playing.albumURI == nil)
+    }
+
+    @Test func episodeKeepsItsURI() throws {
+        let json = #"{"is_playing":true,"progress_ms":0,"item":{"id":"ep1","uri":"spotify:episode:ep1","name":"Episode","duration_ms":1000,"show":{"name":"The Show"}}}"#
+        let playing = try #require(SpotifyPlayback.parse(Data(json.utf8)))
+        #expect(playing.uri == "spotify:episode:ep1")
+        #expect(playing.albumURI == nil)
+    }
+
+    @Test func aHandBuiltNowPlayingCanDoEverything() {
+        let playing = NowPlaying(title: "x")
+        #expect(playing.canSkipNext && playing.canSkipPrevious && playing.canSeek && playing.canShuffle && playing.canRepeat)
+        #expect(!playing.shuffle)
+        #expect(playing.repeatMode == .off)
+    }
+}
+
 @Suite struct SpotifyFailureTests {
     private func body(reason: String) -> Data {
         Data(#"{"error":{"status":404,"message":"Player command failed","reason":"\#(reason)"}}"#.utf8)
@@ -117,6 +242,11 @@ private let episodeJSON = """
     @Test func anythingElseKeepsItsStatus() {
         #expect(SpotifyFailure.classify(status: 500, body: Data()) == .http(500))
         #expect(SpotifyFailure.classify(status: 404, body: Data("garbage".utf8)) == .http(404))
+    }
+
+    @Test func noActiveDeviceSendsThemToTheDevicePicker() {
+        #expect(SpotifyFailure.noActiveDevice.message
+                == "Spotify has no device ready to play. Choose one under Devices, or open Spotify once.")
     }
 
     @Test func everyFailureHasAMessage() {
