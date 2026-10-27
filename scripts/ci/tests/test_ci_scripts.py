@@ -23,6 +23,7 @@ REPO = CI.parent.parent
 sys.path.insert(0, str(CI))
 sys.path.insert(0, str(REPO / "scripts"))
 
+import add_spotify_icon  # noqa: E402
 import check_repo  # noqa: E402
 import check_tests  # noqa: E402
 import pick_package_scheme  # noqa: E402
@@ -470,6 +471,65 @@ class AppIconTests(unittest.TestCase):
 
     def test_a_file_that_is_not_a_png_is_refused(self):
         self.assertEqual(check_repo.main(self.with_icon(b"not a png at all")), 1)
+
+
+class AddSpotifyIconTests(unittest.TestCase):
+    """scripts/add_spotify_icon.py puts the icon from Spotify's guidelines page into the asset catalogue."""
+
+    def setUp(self):
+        self.temp = pathlib.Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.temp, True)
+        self.root = self.temp / "repo"
+        self.root.mkdir()
+
+    def source(self, data):
+        path = self.temp / "icon.png"
+        path.write_bytes(data)
+        return path
+
+    def imageset(self):
+        return self.root / "CabinDash" / "Assets.xcassets" / "SpotifyIcon.imageset"
+
+    def test_installs_a_png_and_writes_contents(self):
+        data = png_bytes(64, 64, 6)
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = add_spotify_icon.install(self.source(data), self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual((self.imageset() / "SpotifyIcon.png").read_bytes(), data)
+        contents = json.loads((self.imageset() / "Contents.json").read_text())
+        self.assertEqual([image["filename"] for image in contents["images"]], ["SpotifyIcon.png"])
+
+    def test_rejects_a_non_png_file(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = add_spotify_icon.install(self.source(b"definitely not a png"), self.root)
+        self.assertEqual(code, 1)
+        self.assertFalse(self.imageset().exists())
+
+    def test_rejects_a_missing_file(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = add_spotify_icon.install(self.temp / "nothing-here.png", self.root)
+        self.assertEqual(code, 1)
+        self.assertFalse(self.imageset().exists())
+
+    def test_rejects_a_png_smaller_than_21_pixels(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = add_spotify_icon.install(self.source(png_bytes(20, 20, 6)), self.root)
+        self.assertEqual(code, 1)
+        self.assertFalse(self.imageset().exists())
+
+    def test_rejects_a_png_that_is_not_square(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = add_spotify_icon.install(self.source(png_bytes(64, 32, 6)), self.root)
+        self.assertEqual(code, 1)
+        self.assertFalse(self.imageset().exists())
+
+    def test_installing_again_replaces_the_icon(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            add_spotify_icon.install(self.source(png_bytes(64, 64, 6)), self.root)
+            newer = png_bytes(128, 128, 6)
+            code = add_spotify_icon.install(self.source(newer), self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual((self.imageset() / "SpotifyIcon.png").read_bytes(), newer)
 
 
 class PackageSchemeTests(unittest.TestCase):

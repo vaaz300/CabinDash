@@ -1,6 +1,6 @@
 # Audit before the first cloud build
 
-> **Written for the first version.** The CarPlay-style rebuild (home grid, rail, Maps, Now Playing, Spotify) came after this audit, and the feature shell replaced its icon grid after that; see the two sections at the end.
+> **Written for the first version.** The CarPlay-style rebuild (home grid, rail, Maps, Now Playing, Spotify) came after this audit, and the feature shell replaced its icon grid after that; Phase 2 then turned Music into a Spotify client. See the sections at the end.
 
 This is what was checked in the existing project before any build was set up, what was changed, and what was left alone on purpose.
 
@@ -116,3 +116,32 @@ Before Phase 2, Phase 1 was checked again against the spec's Phase 1 line and th
 **Not verified, and only a phone can show:** the Settings, Music and Drive screens; the music and next-turn bars on every screen that is not their owner (your screenshots had no Spotify and no bar on screen); the Location-off message; switching Other apps off; the new icon; the Map camera fix; the speed dial; and battery use of the live Home map. The saved "recent apps" list is still written but never shown (dead data, left in place because removing it changes the saved-settings format).
 
 **Not a Phase 1 problem, noted:** GitHub warns that the `checkout` and `upload-artifact` actions target Node.js 20 and are being forced onto Node 24. They run fine. Moving them to newer major versions is housekeeping for when those versions are confirmed.
+
+## Phase 2: Music as a small Spotify client (27 Oct 2026)
+
+Music now has Now Playing (with shuffle, repeat, seek and a like heart), Playlists, Liked Songs, Search, Queue and a device picker, plus a driving lock on typing and a Passenger mode. Spotify still plays the sound in its own app.
+
+**What was built and how each part was checked.**
+
+* **Rules and parsing, in `CabinCore` (tested).** The Spotify request builders, the reading of Spotify's answers (playlists, playlist songs in both the old `track` and new `item` field names, Liked Songs, search, queue, devices, "is this saved", the profile), the "play on the only device" rule, the "Open Spotify" links, the driving lock, Passenger mode, the sign-in permission check and the section list. The declared tests went from 184 to 298 (counted the way the build's test-count step counts them). The sample Spotify answers in those tests are **hand-written from Spotify's documentation, not captured from Spotify**.
+* **Red before green.** For every `CabinCore` task, the new tests were pushed alone first and the "Unit tests on the Mac (swift test)" step on GitHub failed; the implementation was pushed after, and the step passed, along with "Confirm the Mac tests really ran". There is no Swift compiler in the environment I work in, so GitHub is the only place anything compiled or ran.
+* **App code has no automated tests, only a compile.** The models and views (`SpotifyLibraryModel`, the Music panes, the device sheet, the heart, the attribution) were checked by the "Build the app for the iOS Simulator" step succeeding on the commits that carried them: `f761124`, `cf1248b`, `726cbd9`, `0a4525d`, `0e3b593`, `7feb7c4` and `06302af`.
+* **Script.** `scripts/add_spotify_icon.py` has six tests (installs a PNG and writes `Contents.json`; refuses a missing file, a non-PNG, a PNG under 21 px, a non-square PNG; replaces an earlier icon). The helper tests are now 49 and run locally with `python3 -m unittest discover scripts/ci/tests`.
+
+**Found along the way.**
+
+* One run died at "Set up Xcode and XcodeGen" (exit 134 after 3 seconds, a runner crash) and skipped every later step. I drew no conclusion from it; a comment-only commit restarted CI.
+* A cancelled request would have been reported to the screen as "offline". Fixed in the shared fetch function (app code, so no test; the build is the only check).
+* After liking or unliking a song, the loaded Liked Songs list would have gone stale. The list is now forgotten and reloaded the next time it is shown.
+* Some of my own test fixtures for Spotify answers were hard to read and were rewritten before they could hide a mistake.
+
+**Where it knowingly departs from Spotify's design guidelines** (full list in `docs/SPOTIFY-RULES.md`): Spotify's icon is not bundled yet (the plain word "Spotify" is shown instead; `scripts/add_spotify_icon.py` adds it), the progress bar can seek, and lists can run past 20 rows.
+
+**Not verified, and only your phone can show:**
+
+* Anything Spotify actually answers. Every new call (playlists, playlist songs, Liked Songs, search, queue, devices, like and unlike, transfer) has only been checked against sample answers written from the documentation. In particular: whether the playlist-songs and Liked Songs reads work for your account in development mode, and which field names Spotify really uses today.
+* Whether starting playback with a chosen device wakes a Spotify app that is idle, and what Spotify does when several devices are listed.
+* The one-time "Connect Spotify again" step on a phone that holds an old sign-in.
+* The layout on a small landscape iPhone: the section bar scrolls sideways, and the Now Playing buttons, the playlist page header and the device chip are the likely tight spots.
+* The driving lock with real GPS: its 8 and 4 km/h thresholds and the 10-second hold come from the design, and have been tested with made-up speeds only. The lock is not engaged until a GPS reading arrives, and a lost signal does not unlock it.
+* The look and behaviour of every new Music screen.

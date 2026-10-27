@@ -6,14 +6,14 @@ A frosted dock runs down the left edge and stays put on every screen: the time, 
 
 - **Home.** Three live widgets: a map that follows you (with the next turn while you navigate), what Spotify is playing with previous, play/pause and next, and your speed with the trip so far. Tap a widget to open its full screen.
 - **Map.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
-- **Music.** Shows what the Spotify app is playing and controls it. Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`.
+- **Music.** A small Spotify client: what is playing with previous, play/pause, next, seek, shuffle and repeat, a heart to like the song, your playlists and Liked Songs, search, the queue, and a device picker. Spotify's app still plays the sound, so keep it running. Search is switched off while the car is moving (Passenger mode in Settings lifts that). Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`. Spotify's rules and where Cabin Dash falls short of them: `docs/SPOTIFY-RULES.md`.
 - **Drive.** Live speed dial, heading, trip distance, trip time and average speed from the iPhone's GPS.
 - **Settings.** Units, directions app, Spotify, theme and wallpaper, saved places.
 - **Other apps (optional, off by default).** Turn on **Show Other apps in the dock** in Settings and an Apps button appears. It lists the apps found on your iPhone, with each app's App Store icon; tapping one leaves Cabin Dash and opens it. iOS does not allow another app's screen inside Cabin Dash.
 
 The track that is playing and the next turn also show as thin bars at the top right of every screen that does not already show them.
 
-**Not built yet:** Phone, Messages and Contacts as screens of their own (the Phone and Messages tiles on the Other apps screen hand off to the iPhone's own apps), spoken turn-by-turn directions, browsing your Spotify library, and car data. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; the current step is `docs/superpowers/plans/2026-10-26-phase-1-shell-and-dashboard.md`.
+**Not built yet:** Phone, Messages and Contacts as screens of their own (the Phone and Messages tiles on the Other apps screen hand off to the iPhone's own apps), spoken turn-by-turn directions, and car data. Spotify has no Browse tab or artist pages here. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; Phase 1 (the shell and Home) and Phase 2 (Music) are built; Phase 2's plan is `docs/superpowers/plans/2026-10-27-phase-2-music-library.md`.
 
 This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud Mac" does the building.
 
@@ -22,13 +22,13 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 184 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 298 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
 | App installed on an iPhone | **Yes.** Phase 1 was installed with iLoader and your screenshots show it running: the dock, Home with its three widgets and a route card, the Map screen following a route, and the Other apps screen. **Not yet seen on a phone:** the Settings, Music and Drive screens, the bars on top, the Location-off state, the new app icon, and any of it while driving. |
 | Look matches CarPlay | Seen on a phone in your screenshots. It is being adjusted from your feedback (so far the clock, the route card, the speed dial and the Phone tile). Send another screenshot and it will be adjusted again. |
-| Spotify, Map and Home widgets | The Map and Home widgets were seen working on a phone with a planned route, but not while driving. **Spotify is untested:** it needs your own developer app (`docs/SPOTIFY-SETUP.md`). |
+| Spotify, Map and Home widgets | The Map and Home widgets were seen working on a phone with a planned route, but not while driving. **Spotify sign-in and the Home music widget were confirmed on your phone (27 Oct 2026).** The Phase 2 Music screens (Playlists, Liked, Search, Queue, devices, the heart, the driving lock) compile and their parsing and rules have unit tests, but none of them has talked to Spotify yet. After installing the new build, tap **Connect Spotify again** once (`docs/SPOTIFY-SETUP.md`). |
 
 Nothing in this repository claims a build or test passed unless the cloud build says so. A green simulator build does not mean the app works on a real iPhone: signing, real GPS, and detection of your real apps are still untested.
 
@@ -170,7 +170,7 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 **Map.** The map and the directions come from Apple Maps (MapKit), because iOS cannot put Google Maps inside another app. Turn-by-turn here is simple: it shows the next instruction and counts down the straight-line distance to it, and it moves on when you pass it. It does not speak, does not reroute by itself (there is a Reroute button), and stops updating when the screen is off or the app is in the background. For real navigation use **Open in Google Maps**, which starts the trip in the Google Maps app (set "Directions with" to Google Maps in Settings).
 
-**Music.** See `docs/SPOTIFY-SETUP.md`.
+**Music.** See `docs/SPOTIFY-SETUP.md`. The section bar along the top switches between Now Playing, Playlists, Liked, Search and Queue; the device chip beside it opens the list of Spotify devices. Spotify decides which device makes the sound: with none ready, playback cannot start, and Cabin Dash only starts one by itself when exactly one usable device exists. Typing in Search is locked while the car is faster than about 8 km/h and stays locked until it has been below 4 km/h for 10 seconds; Passenger mode (Settings > Driving) turns the lock off. Likes go straight to Spotify and nothing is saved on the phone.
 
 **Speed and trip.** From Core Location, only while the app is on screen. Standing still, poor readings and sudden jumps are ignored. The screen stays on while the app is open (switch off in Settings) and always while a route is being followed, so keep the phone plugged in. Turning off "Precise Location" for the app currently breaks speed and distance without a message; see `docs/IOS-LIMITS.md`.
 
@@ -210,16 +210,18 @@ CabinDash/             The app itself
   Views/Shell/         Dock (StatusRail), the bars on top (Strips), Other apps screen, wallpaper
   Views/Dashboard/     Home widgets
   Views/Map/           Map screen and place search
-  Views/Music/         Music screen
+  Views/Music/         Music screen: Now Playing, Playlists, Liked, Search, Queue, device picker
   Views/Drive/         Drive screen and gauge
   Views/Settings/      Settings screen
 scripts/ci/            Helpers the cloud build runs, and their tests
 scripts/check_schemes.py, swift_sanity.py, make_icon.py   (make_icon.py fits design/icon-source.png to the app icon)
+scripts/add_spotify_icon.py   Adds Spotify's icon to the app once you have downloaded it (docs/SPOTIFY-RULES.md)
 design/                The artwork the app icon is made from
 docs/AUDIT.md          What was checked and changed before the first build
 docs/IOS-LIMITS.md     What iOS allows and how the app copes
 docs/DEVICE-INSTALL.md Signing, secrets, and getting the app on a phone
 docs/SPOTIFY-SETUP.md  Making the Spotify developer app and connecting it
+docs/SPOTIFY-RULES.md  Spotify's rules, what Cabin Dash follows, and where it falls short
 ```
 
 ## Not CarPlay
