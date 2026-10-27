@@ -54,11 +54,11 @@ private struct PlayerView: View {
                             .padding(.top, 1)
                     }
 
-                    ProgressBar(spotify: spotify, duration: playing.duration)
+                    ProgressBar(spotify: spotify, duration: playing.duration, canSeek: playing.canSeek)
                         .padding(.top, 18)
 
-                    Controls(spotify: spotify, playing: playing.isPlaying)
-                        .padding(.top, 14)
+                    Controls(spotify: spotify, track: playing)
+                        .padding(.top, 10)
 
                     Spacer(minLength: 0)
 
@@ -75,7 +75,8 @@ private struct Artwork: View {
     let url: URL?
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        // Spotify's design guidelines ask for artwork shown unaltered, with 8 pt corners on large screens.
+        let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         AsyncImage(url: url) { phase in
             switch phase {
             case .success(let image):
@@ -96,7 +97,6 @@ private struct Artwork: View {
             }
         }
         .clipShape(shape)
-        .overlay(shape.strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75))
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
         .accessibilityHidden(true)
     }
@@ -106,6 +106,8 @@ private struct Artwork: View {
 private struct ProgressBar: View {
     let spotify: SpotifyModel
     let duration: Double
+    /// False when Spotify says seeking is not allowed (some ads and podcasts), so the bar is shown but does nothing.
+    let canSeek: Bool
     @State private var dragFraction: Double?
 
     var body: some View {
@@ -139,6 +141,8 @@ private struct ProgressBar: View {
                     )
                 }
                 .frame(height: 28)
+                .allowsHitTesting(canSeek)
+                .opacity(canSeek ? 1 : 0.45)
                 Text("-" + Self.clock(max(0, duration - fraction * duration)))
                     .frame(width: 52, alignment: .leading)
             }
@@ -155,23 +159,46 @@ private struct ProgressBar: View {
     }
 }
 
+/// Previous, play or pause and next, with shuffle and repeat on a smaller row beneath.
+/// A control Spotify has switched off for this track (an ad, say) is dimmed and does nothing.
 private struct Controls: View {
     let spotify: SpotifyModel
-    let playing: Bool
+    let track: NowPlaying
 
     var body: some View {
-        HStack(spacing: 44) {
-            Spacer(minLength: 0)
-            ControlButton(symbol: "backward.fill", size: 32, label: "Previous") {
-                Task { await spotify.skipPrevious() }
+        VStack(spacing: 4) {
+            HStack(spacing: 44) {
+                Spacer(minLength: 0)
+                ControlButton(symbol: "backward.fill", size: 32, label: "Previous", enabled: track.canSkipPrevious) {
+                    Task { await spotify.skipPrevious() }
+                }
+                ControlButton(
+                    symbol: track.isPlaying ? "pause.fill" : "play.fill", size: 40,
+                    label: track.isPlaying ? "Pause" : "Play"
+                ) {
+                    Task { await spotify.togglePlayPause() }
+                }
+                ControlButton(symbol: "forward.fill", size: 32, label: "Next", enabled: track.canSkipNext) {
+                    Task { await spotify.skipNext() }
+                }
+                Spacer(minLength: 0)
             }
-            ControlButton(symbol: playing ? "pause.fill" : "play.fill", size: 40, label: playing ? "Pause" : "Play") {
-                Task { await spotify.togglePlayPause() }
+            HStack(spacing: 56) {
+                Spacer(minLength: 0)
+                ModeButton(
+                    symbol: "shuffle", label: track.shuffle ? "Shuffle on" : "Shuffle off",
+                    active: track.shuffle, enabled: track.canShuffle
+                ) {
+                    Task { await spotify.toggleShuffle() }
+                }
+                ModeButton(
+                    symbol: track.repeatMode.symbol, label: track.repeatMode.title,
+                    active: track.repeatMode != .off, enabled: track.canRepeat
+                ) {
+                    Task { await spotify.cycleRepeat() }
+                }
+                Spacer(minLength: 0)
             }
-            ControlButton(symbol: "forward.fill", size: 32, label: "Next") {
-                Task { await spotify.skipNext() }
-            }
-            Spacer(minLength: 0)
         }
     }
 }
@@ -180,6 +207,7 @@ private struct ControlButton: View {
     let symbol: String
     let size: CGFloat
     let label: String
+    var enabled = true
     let action: () -> Void
 
     var body: some View {
@@ -194,7 +222,36 @@ private struct ControlButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.88))
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.3)
         .accessibilityLabel(label)
+    }
+}
+
+/// Shuffle and repeat: smaller than the transport, and lit when on.
+private struct ModeButton: View {
+    let symbol: String
+    let label: String
+    let active: Bool
+    let enabled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            action()
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(active ? Theme.accent : Color.primary.opacity(0.7))
+                .frame(width: 72, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.88))
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.3)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(active ? [.isSelected] : [])
     }
 }
 

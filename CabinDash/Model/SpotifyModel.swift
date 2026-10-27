@@ -170,6 +170,22 @@ final class SpotifyModel {
         await command(SpotifyEndpoint.seek(milliseconds: Int(max(0, seconds) * 1000)))
     }
 
+    /// Flips shuffle on the screen at once, then tells Spotify. If Spotify refuses, the next read puts it back.
+    func toggleShuffle() async {
+        guard let current = nowPlaying else { return }
+        let target = !current.shuffle
+        nowPlaying?.shuffle = target
+        await command(SpotifyEndpoint.shuffle(target))
+    }
+
+    /// Off, then repeat all, then repeat one, then off again.
+    func cycleRepeat() async {
+        guard let current = nowPlaying else { return }
+        let target = current.repeatMode.next
+        nowPlaying?.repeatMode = target
+        await command(SpotifyEndpoint.setRepeat(target))
+    }
+
     private func command(_ request: SpotifyRequest) async {
         guard phase == .signedIn else { return }
         do {
