@@ -57,11 +57,14 @@ public struct SpotifyToken: Codable, Equatable, Sendable {
     public var accessToken: String
     public var refreshToken: String
     public var expiresAt: Date
+    /// The permissions Spotify granted, space separated. Nil for a token saved before Cabin Dash recorded it.
+    public var scope: String?
 
-    public init(accessToken: String, refreshToken: String, expiresAt: Date) {
+    public init(accessToken: String, refreshToken: String, expiresAt: Date, scope: String? = nil) {
         self.accessToken = accessToken
         self.refreshToken = refreshToken
         self.expiresAt = expiresAt
+        self.scope = scope
     }
 
     /// True when the token is expired, or will be within `margin` seconds.
@@ -69,15 +72,21 @@ public struct SpotifyToken: Codable, Equatable, Sendable {
         now.addingTimeInterval(margin) >= expiresAt
     }
 
-    /// Reads Spotify's token answer. A refresh answer often has no new refresh token; then the old one stays valid.
-    public static func parse(_ data: Data, now: Date, previousRefresh: String?) -> SpotifyToken? {
+    /// False for a token granted before Cabin Dash asked for playlists and likes: the person has to sign in once more.
+    public var hasAllRequiredScopes: Bool {
+        SpotifyAuth.missingScopes(granted: scope).isEmpty
+    }
+
+    /// Reads Spotify's token answer. A refresh answer often has no new refresh token or scope; then the old ones stay valid.
+    public static func parse(_ data: Data, now: Date, previousRefresh: String?, previousScope: String? = nil) -> SpotifyToken? {
         guard let object = try? JSONSerialization.jsonObject(with: data),
               let root = object as? [String: Any],
               let access = root["access_token"] as? String, !access.isEmpty else { return nil }
         let refresh = (root["refresh_token"] as? String) ?? previousRefresh
         guard let refresh, !refresh.isEmpty else { return nil }
         let seconds = (root["expires_in"] as? NSNumber)?.doubleValue ?? 3600
-        return SpotifyToken(accessToken: access, refreshToken: refresh, expiresAt: now.addingTimeInterval(seconds))
+        let scope = (root["scope"] as? String) ?? previousScope
+        return SpotifyToken(accessToken: access, refreshToken: refresh, expiresAt: now.addingTimeInterval(seconds), scope: scope)
     }
 }
 
@@ -87,8 +96,18 @@ public enum SpotifyAuth {
     public static let redirectScheme = "cabindash"
     public static let redirectURI = "cabindash://spotify-callback"
 
-    /// Read what is playing, and control it. Nothing else is asked for.
-    public static let scopes = ["user-read-playback-state", "user-modify-playback-state", "user-read-currently-playing"]
+    /// Read what is playing and control it, then browse the person's playlists and Liked Songs and like a song.
+    /// Spotify fixes the permissions at sign-in, so adding one here means signing in once more.
+    public static let scopes = [
+        "user-read-playback-state", "user-modify-playback-state", "user-read-currently-playing",
+        "playlist-read-private", "playlist-read-collaborative", "user-library-read", "user-library-modify"
+    ]
+
+    /// The required permissions that `granted` (Spotify's space-separated list) does not contain. Nil or empty lacks them all.
+    public static func missingScopes(granted: String?) -> [String] {
+        let have = Set((granted ?? "").split(whereSeparator: { $0.isWhitespace }).map(String.init))
+        return scopes.filter { !have.contains($0) }
+    }
 
     public static let tokenURL = URL(string: "https://accounts.spotify.com/api/token")
 
