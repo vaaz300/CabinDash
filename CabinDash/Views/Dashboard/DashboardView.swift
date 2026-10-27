@@ -24,7 +24,8 @@ struct DashboardView: View {
 
 // MARK: - Map
 
-/// A map that follows the iPhone and can't be dragged. The next turn sits on it while a route is being followed.
+/// A map that follows the iPhone and can't be dragged. While a route is planned or followed it draws the route line,
+/// exactly as the Map screen does, and the next turn sits on top.
 private struct MapWidget: View {
     @Environment(AppModel.self) private var model
     @State private var camera: MapCameraPosition = .userLocation(followsHeading: false, fallback: .automatic)
@@ -40,6 +41,7 @@ private struct MapWidget: View {
             ZStack(alignment: .topLeading) {
                 Map(position: $camera, interactionModes: []) {
                     UserAnnotation()
+                    RouteMapContent(route: route)
                 }
                 .mapStyle(.standard(elevation: .flat, emphasis: .automatic, pointsOfInterest: .all, showsTraffic: true))
                 .mapControlVisibility(.hidden)

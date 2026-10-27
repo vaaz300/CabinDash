@@ -60,16 +60,7 @@ struct MapScreen: View {
     private func map(_ route: RouteModel) -> some View {
         Map(position: $camera) {
             UserAnnotation()
-            if let line = route.route?.polyline {
-                MapPolyline(line)
-                    .stroke(Color.white.opacity(0.92), lineWidth: 11)
-                MapPolyline(line)
-                    .stroke(Theme.route, lineWidth: 7)
-            }
-            if let destination = route.destination {
-                Marker(route.destinationName, systemImage: "flag.checkered", coordinate: destination.placemark.coordinate)
-                    .tint(Color.red)
-            }
+            RouteMapContent(route: route)
         }
         .mapStyle(.standard(elevation: .flat, emphasis: .automatic, pointsOfInterest: .all, showsTraffic: true))
         .mapControlVisibility(.hidden)

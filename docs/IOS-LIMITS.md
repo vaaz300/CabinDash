@@ -78,11 +78,11 @@ The music and next-turn bars sit at the top right of every screen except the one
 
 What it cannot copy from CarPlay:
 
-* **No unread badges.** iOS gives an app no way to read another app's badge count, so Phone and Messages have none.
+* **No unread badges.** iOS gives an app no way to read another app's badge count, so Messages has none.
 * **No signal bars.** iOS does not report cellular signal strength to apps. The rail shows whether the phone is on Wi-Fi, cellular or offline, and nothing it cannot know.
 * **Apple's artwork.** Apple's icons for Phone, Messages, Music and the like are not on the App Store, and the wallpapers are Apple's. Those tiles and the ribbon wallpaper are original drawings in the same spirit. Icons of apps that are on the App Store (Spotify, Google Maps, Waze and so on) are fetched from it at runtime, as before.
 * **Other apps' screens.** iOS has no way to show another app's screen or its live content inside Cabin Dash. Tapping Spotify or Google Maps opens that app and leaves Cabin Dash. That is why Map and Music are separate screens that Cabin Dash draws itself.
-* **Phone and Messages.** Cabin Dash has no Phone or Messages screen yet. Their tiles on the optional Other apps screen open `tel://` and `sms://`. Messages is a well-known link. Phone's bare `tel://` has not been tried and might do nothing on some iOS versions; if it fails, a message says "Couldn't open Phone".
+* **Phone and Messages.** Cabin Dash has no Phone or Messages screen yet. The optional Other apps screen has a Messages tile that opens `sms://`. It has no Phone tile: iOS has no public link that opens the Phone app, and the bare `tel://` the tile used opened iOS's Call prompt with no number in it (seen on a phone, 27 Oct 2026). A `tel:` link only works with a number, and iOS always asks "Call?" before dialling it. That prompt is iOS's own and cannot be skipped, so even the Phone screen planned for a later phase will show it once per call.
 
 **None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the dock spacing on a small iPhone (SE-sized screens are the likely problem), the three Home widgets, and whether the top-right bars cover anything you need.
 
