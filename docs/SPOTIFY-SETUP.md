@@ -20,7 +20,7 @@ The **Music** screen shows what the Spotify app is playing and sends it play, pa
    * App name: `Cabin Dash` (anything).
    * Description: anything.
    * **Redirect URI:** type exactly `cabindash://spotify-callback` and press **Add**. It must match to the letter, or Spotify refuses to sign you in. (Spotify's own page lists only the name, description and terms on the create dialog and puts redirect addresses under **Edit Settings**. If your create form has no Redirect URI field, create the app first and add it in the app's **Settings**.)
-   * If it asks which API/SDKs you plan to use: tick **Web API**.
+   * If it asks which API/SDKs you plan to use: tick **Web API** only. Do not tick **iOS**, and leave any **Bundle IDs** field empty. Cabin Dash signs in through Apple's in-app web sheet and talks to the Web API. It does not use Spotify's iOS SDK (that one needs the Spotify app open and a Bundle ID), so nothing in the app reads those settings. Spotify's pages don't describe this selector, so if your form shows something that doesn't match, tell me what it says rather than guessing.
    * Accept the terms and **Save**.
 3. Open the app's **Settings**. Copy the **Client ID**. (It is a public identifier, not a password. You do not need the Client Secret and should not use it.)
 4. If the app has a **User Management** tab, add yourself: your name and the email address of your Spotify account. In development mode Spotify limits who can sign in, and its pages do not say whether the owner is added automatically. Adding yourself does no harm.
