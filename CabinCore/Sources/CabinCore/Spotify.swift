@@ -14,10 +14,21 @@ public struct NowPlaying: Equatable, Sendable {
     public var progress: TimeInterval
     public var isPlaying: Bool
     public var deviceName: String?
+    /// The track's or episode's Spotify URI, e.g. `spotify:track:...`. Used to like it.
+    public var uri: String?
+    public var albumURI: String?
+    /// The playlist or album it is playing from, when Spotify says so.
+    public var contextURI: String?
+    public var shuffle: Bool
+    public var repeatMode: SpotifyRepeat
+    /// What Spotify says cannot be done right now, e.g. `skipping_prev`. Only the ones marked true.
+    public var disallows: Set<String>
 
     public init(
         trackID: String? = nil, title: String, subtitle: String = "", album: String = "", artworkURL: URL? = nil,
-        duration: TimeInterval = 0, progress: TimeInterval = 0, isPlaying: Bool = false, deviceName: String? = nil
+        duration: TimeInterval = 0, progress: TimeInterval = 0, isPlaying: Bool = false, deviceName: String? = nil,
+        uri: String? = nil, albumURI: String? = nil, contextURI: String? = nil,
+        shuffle: Bool = false, repeatMode: SpotifyRepeat = .off, disallows: Set<String> = []
     ) {
         self.trackID = trackID
         self.title = title
@@ -28,6 +39,21 @@ public struct NowPlaying: Equatable, Sendable {
         self.progress = progress
         self.isPlaying = isPlaying
         self.deviceName = deviceName
+        self.uri = uri
+        self.albumURI = albumURI
+        self.contextURI = contextURI
+        self.shuffle = shuffle
+        self.repeatMode = repeatMode
+        self.disallows = disallows
+    }
+
+    public var canSkipNext: Bool { !disallows.contains("skipping_next") }
+    public var canSkipPrevious: Bool { !disallows.contains("skipping_prev") }
+    public var canSeek: Bool { !disallows.contains("seeking") }
+    public var canShuffle: Bool { !disallows.contains("toggling_shuffle") }
+    /// Repeat cycles through all three settings, so it only needs one of the two repeat toggles to be allowed.
+    public var canRepeat: Bool {
+        !(disallows.contains("toggling_repeat_context") && disallows.contains("toggling_repeat_track"))
     }
 
     /// 0...1, how far through the track.
@@ -59,6 +85,10 @@ public enum SpotifyPlayback {
             ?? (show?["images"] as? [[String: Any]])
             ?? []
         let device = root["device"] as? [String: Any]
+        let context = root["context"] as? [String: Any]
+        // Spotify lists the blocked actions as {"skipping_prev": true}. A false entry means the action is allowed.
+        let blocked = (root["actions"] as? [String: Any])?["disallows"] as? [String: Any] ?? [:]
+        let disallows = Set(blocked.compactMap { key, value in (value as? Bool) == true ? key : nil })
 
         return NowPlaying(
             trackID: item["id"] as? String,
@@ -69,7 +99,13 @@ public enum SpotifyPlayback {
             duration: number(item["duration_ms"]) / 1000,
             progress: number(root["progress_ms"]) / 1000,
             isPlaying: (root["is_playing"] as? Bool) ?? false,
-            deviceName: device?["name"] as? String
+            deviceName: device?["name"] as? String,
+            uri: item["uri"] as? String,
+            albumURI: album?["uri"] as? String,
+            contextURI: context?["uri"] as? String,
+            shuffle: (root["shuffle_state"] as? Bool) ?? false,
+            repeatMode: SpotifyRepeat(spotifyValue: root["repeat_state"] as? String),
+            disallows: disallows
         )
     }
 
@@ -130,7 +166,7 @@ public enum SpotifyFailure: Error, Equatable, Sendable {
     public var message: String {
         switch self {
         case .notSignedIn: return "Connect Spotify to see what is playing."
-        case .noActiveDevice: return "Open Spotify and start playing something, then try again."
+        case .noActiveDevice: return "Spotify has no device ready to play. Choose one under Devices, or open Spotify once."
         case .premiumRequired: return "Spotify only lets Premium accounts control playback from other apps."
         case .notAllowed: return "Spotify refused the request. Check that your account is listed under User Management for this app."
         case .rateLimited: return "Spotify asked Cabin Dash to slow down. It will try again in a moment."
