@@ -26,9 +26,9 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
-| App installed on an iPhone | An earlier version was installed with iLoader. **The dock, Home widgets and Settings screen have not been installed on a phone.** |
-| Look matches CarPlay | **Not seen on a screen.** The layout was written from your screenshots. Nobody has looked at it running, not even in a simulator. Send a screenshot and it will be adjusted. |
-| Spotify, Map and Home widgets | **Untested on a phone.** They need real GPS and, for Spotify, your own developer app. |
+| App installed on an iPhone | **Yes.** Phase 1 was installed with iLoader and your screenshots show it running: the dock, Home with its three widgets and a route card, the Map screen following a route, and the Other apps screen. **Not yet seen on a phone:** the Settings, Music and Drive screens, the bars on top, the Location-off state, the new app icon, and any of it while driving. |
+| Look matches CarPlay | Seen on a phone in your screenshots. It is being adjusted from your feedback (so far the clock, the route card, the speed dial and the Phone tile). Send another screenshot and it will be adjusted again. |
+| Spotify, Map and Home widgets | The Map and Home widgets were seen working on a phone with a planned route, but not while driving. **Spotify is untested:** it needs your own developer app (`docs/SPOTIFY-SETUP.md`). |
 
 Nothing in this repository claims a build or test passed unless the cloud build says so. A green simulator build does not mean the app works on a real iPhone: signing, real GPS, and detection of your real apps are still untested.
 
@@ -214,7 +214,8 @@ CabinDash/             The app itself
   Views/Drive/         Drive screen and gauge
   Views/Settings/      Settings screen
 scripts/ci/            Helpers the cloud build runs, and their tests
-scripts/check_schemes.py, swift_sanity.py, make_icon.py
+scripts/check_schemes.py, swift_sanity.py, make_icon.py   (make_icon.py fits design/icon-source.png to the app icon)
+design/                The artwork the app icon is made from
 docs/AUDIT.md          What was checked and changed before the first build
 docs/IOS-LIMITS.md     What iOS allows and how the app copes
 docs/DEVICE-INSTALL.md Signing, secrets, and getting the app on a phone

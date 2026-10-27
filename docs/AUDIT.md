@@ -89,8 +89,30 @@ The app stopped being an icon launcher. Navigation is now a `Router` over a `Fea
 
 **Not verified, and only checkable on a phone:** how the dock, Home widgets and top bars look and fit (especially on a small iPhone); whether the non-interactive map widget behaves; whether the music and route bars cover anything; Spotify and GPS behaviour. `Map(position:interactionModes:)` was used without checking Apple's documentation for it. If the build rejects it, the fallback is to draw the map under a layer that blocks touches.
 
-**Found in the read-through before handing over, and fixed:** with Other apps off (the default) the app still asked Apple's App Store for the icons of the apps on your shelf at every launch. `HomeLayout.iconApps` now returns nothing while the switch is off, and two tests pin that. **Found and left alone:** the Map screen is rebuilt on every dock tap, so coming back to it mid-route leaves the camera not turning with your heading until you tap Recenter.
+**Found in the read-through before handing over, and fixed:** with Other apps off (the default) the app still asked Apple's App Store for the icons of the apps on your shelf at every launch. `HomeLayout.iconApps` now returns nothing while the switch is off, and two tests pin that. **Found and left alone at first (fixed in the re-check below):** the Map screen is rebuilt on every dock tap, so coming back to it mid-route left the camera not turning with your heading until you tapped Recenter.
 
 **Found on the first phone screenshots (26 and 27 Oct 2026):** the clock was wider than the dock, the next-turn card covered Apple's "Maps" attribution, and the cellular icon showed full bars (all fixed in `d4b37a7`); then the **Phone tile opened iOS's Call prompt with no number in it** (the bare `tel://` link, which this document's earlier "not tried" note had flagged as a risk; the tile is removed and a test pins that), and the **Home map widget drew no route line** while the Map screen did (the widget built its own map holding only the location dot; both screens now draw the route through one shared `RouteMapContent`). Neither of the last two was visible to a compiler or the tests: the first is iOS behaviour, the second is view code, which has no automated tests. The shared definition is what keeps the two maps from drifting apart again.
 
-**Choices worth knowing about:** every dock tap rebuilds the screen it goes to, so the Other apps page and the Map camera reset when you come back (route and music state are kept in the models and are not lost). The Phone and Messages tiles are still only links to the iPhone's own apps.
+**Choices worth knowing about:** every dock tap rebuilds the screen it goes to, so the Other apps screen goes back to its first page when you come back (route and music state are kept in the models and are not lost, and the Map frames itself for the current stage of the route). The Phone and Messages tiles are still only links to the iPhone's own apps.
+
+## Phase 1 re-check (27 Oct 2026)
+
+Before Phase 2, Phase 1 was checked again against the spec's Phase 1 line and the plan, instead of trusting the earlier "done".
+
+**Checked, with the evidence:**
+
+* **Every Phase 1 deliverable exists in code:** the `Feature` enum, `Router` and `Dock` (`Feature.swift`); the fixed dock (`StatusRail`); the Dashboard with Map, Music and Drive widgets (`DashboardView`); Settings as a screen (`SettingsScreen`); the Other apps launcher, off by default (`Preferences.showOtherApps`, `OtherAppsScreen`); the music and route bars (`Strips.swift`); and the dock, router, bar and sizing rules with tests (`FeatureTests`, `OtherAppsSwitchTests`, `HomeLayoutTests`). The spec's call banner is Phase 3, on purpose.
+* **The plan's five "Review Focus" failure modes** each have a test or a code path: old saved settings, the Apps screen when the switch goes off, very short screens, Spotify not connected or nothing playing, and Location denied.
+* **Global constraints held.** Nothing changed in `project.yml`, `Config/`, the privacy manifest, `Package.swift` or `.github` since the base commit `c5b2c5c`. There are no entitlements, web views or private-API calls, and the only in-app sign-in is Apple's `ASWebAuthenticationSession`. The app is still iOS 17 and landscape only.
+* **No leftovers.** The plan's stale-name search prints nothing, the folder paths in the docs match, and no `TODO`, `print` or force-unwrap was found in the app code.
+* **Local scripts and tests.** `swift_sanity.py`, `check_schemes.py`, `check_repo.py` and the 43 CI-helper tests pass, and 184 `@Test` functions are declared.
+* **GitHub.** The "iOS build" run for `d99693d` passed all 22 steps: the Mac tests, the check that they really ran, the simulator build, the simulator tests, and the launch check.
+* **Compiler warnings, for the first time.** Until now they were only in the job summary, which needs a login. Warnings in our own files are now GitHub annotations as well, and that run reported none. The annotation code was tested on hand-written log lines, not on a real warning, so read "none" with that in mind.
+
+**Found and fixed in this re-check:** coming back to the Map mid-route now frames the camera for the current stage of the route (it used to stop following your heading); the Reset apps text no longer mentions recent apps, which are gone from the screen; an unused import was removed. The Phone tile and the missing route line on the Home map were found on your phone screenshots and fixed just before (see above).
+
+**Also added:** the app icon is now your artwork (`design/icon-source.png`, fitted by `scripts/make_icon.py`), and `check_repo.py` fails a build early if the icon is not 1024 x 1024 or has transparency.
+
+**Not verified, and only a phone can show:** the Settings, Music and Drive screens; the music and next-turn bars on every screen that is not their owner (your screenshots had no Spotify and no bar on screen); the Location-off message; switching Other apps off; the new icon; the Map camera fix; the speed dial; and battery use of the live Home map. The saved "recent apps" list is still written but never shown (dead data, left in place because removing it changes the saved-settings format).
+
+**Not a Phase 1 problem, noted:** GitHub warns that the `checkout` and `upload-artifact` actions target Node.js 20 and are being forced onto Node 24. They run fine. Moving them to newer major versions is housekeeping for when those versions are confirmed.
