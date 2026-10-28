@@ -156,9 +156,11 @@ import Testing
         #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: false) == .wakeThisPhone)
     }
 
-    @Test func aPhoneThatIsPlayingIsUsedEvenWhenNotConnected() {
+    @Test func aPhoneSpotifyCallsActiveIsNoProofThatItIsAwake() {
+        // Spotify keeps calling a sleeping phone active. Trusting that cost four silent seconds before the app was started.
         let phone = device("p", type: "Smartphone", active: true)
-        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: false) == .device(phone))
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: false) == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: "p", phoneIsAwake: false) == .wakeThisPhone)
     }
 
     @Test func anIdlePhoneIsUsedWhenTheConnectionToSpotifyIsUp() {
@@ -177,11 +179,39 @@ import Testing
         #expect(SpotifyDevices.route(devices: [phone, tv], chosenID: "tv", phoneIsAwake: false) == .device(tv))
     }
 
-    @Test func anIdlePhoneBehindAnActiveOneIsSkipped() {
-        // Two phones: only the one that answers is worth sending to.
-        let idle = device("p1", type: "Smartphone", active: false)
-        let live = device("p2", type: "Smartphone", active: true)
-        #expect(SpotifyDevices.route(devices: [idle, live], chosenID: nil, phoneIsAwake: false) == .device(live))
+    @Test func anAwakePhoneIsUsedWhateverSpotifyCallsActive() {
+        let idle = device("p", type: "Smartphone", active: false)
+        #expect(SpotifyDevices.route(devices: [idle], chosenID: nil, phoneIsAwake: true) == .device(idle))
+    }
+}
+
+/// Whether the Spotify app on this iPhone can be expected to answer a command. Spotify's device list cannot say: it keeps
+/// showing a phone whose app went to sleep. Only two things prove the app is awake: Cabin Dash is connected to it, or the
+/// player has just shown this phone playing.
+@Suite struct SpotifyPhoneAwakeTests {
+    private let phone = SpotifyDevice(id: "p", name: "Evan's iPhone", type: "Smartphone", isActive: true)
+    private let tv = SpotifyDevice(id: "tv", name: "Xiaomi TV Box", type: "TV", isActive: true)
+
+    @Test func aConnectionToSpotifyMeansAwakeWhateverTheListSays() {
+        #expect(SpotifyDevices.phoneIsAwake(connected: true, devices: nil, playingOn: nil, isPlaying: false))
+        #expect(SpotifyDevices.phoneIsAwake(connected: true, devices: [tv], playingOn: nil, isPlaying: false))
+    }
+
+    @Test func aPhoneThatIsPlayingRightNowIsAwake() {
+        #expect(SpotifyDevices.phoneIsAwake(connected: false, devices: [phone, tv], playingOn: "Evan's iPhone", isPlaying: true))
+    }
+
+    @Test func aPhoneThatIsPausedIsNotKnownToBeAwake() {
+        #expect(!SpotifyDevices.phoneIsAwake(connected: false, devices: [phone], playingOn: "Evan's iPhone", isPlaying: false))
+    }
+
+    @Test func musicOnAnotherDeviceSaysNothingAboutThePhone() {
+        #expect(!SpotifyDevices.phoneIsAwake(connected: false, devices: [phone, tv], playingOn: "Xiaomi TV Box", isPlaying: true))
+    }
+
+    @Test func nothingPlayingAndNoConnectionIsNotAwake() {
+        #expect(!SpotifyDevices.phoneIsAwake(connected: false, devices: [phone], playingOn: nil, isPlaying: false))
+        #expect(!SpotifyDevices.phoneIsAwake(connected: false, devices: nil, playingOn: "Evan's iPhone", isPlaying: true))
     }
 }
 
