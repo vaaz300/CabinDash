@@ -114,7 +114,7 @@ private struct SectionPills: View {
     }
 }
 
-/// Which device is playing. Tapping it opens the list, so it is also how to pick one when none is ready.
+/// Which device is playing, or where Play will go. Tapping it opens the list, to pick another device.
 private struct DeviceChip: View {
     @Environment(AppModel.self) private var model
 
@@ -134,7 +134,7 @@ private struct DeviceChip: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.97))
-        .accessibilityLabel(line == "Choose device" ? line : line + ". Choose another device")
+        .accessibilityLabel(line + ". Choose another device")
     }
 }
 

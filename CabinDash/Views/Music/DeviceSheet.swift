@@ -1,8 +1,8 @@
 import CabinCore
 import SwiftUI
 
-/// The devices Spotify can play on. Tapping one moves playback there. Pull down to look again.
-/// Nothing here is chosen for the person: playback only moves when they tap a device.
+/// The devices Spotify can play on. Tapping one moves playback there and keeps it there. Pull down to look again.
+/// With nothing picked here, Play goes to this iPhone. Cabin Dash never picks any other device for the person.
 struct DeviceSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
@@ -49,8 +49,8 @@ struct DeviceSheet: View {
     @ViewBuilder
     private func list(_ devices: [SpotifyDevice], library: SpotifyLibraryModel) -> some View {
         List {
-            // Spotify lists a phone only while its Spotify app is running, and only Spotify can start it. This row opens
-            // Spotify, which plays and then returns here by itself. The phone then shows up in the list below.
+            // Play starts Spotify on this iPhone by itself when it has to. This row does the same without picking a song, and
+            // goes back to playing on this iPhone if another device was picked.
             let phoneListed = SpotifyDevices.hasPhone(in: devices)
             Section {
                 Button {
@@ -79,9 +79,9 @@ struct DeviceSheet: View {
                 }
             } footer: {
                 if phoneListed {
-                    Text("If a song will not start on this iPhone, the Spotify app has probably gone to sleep. This wakes it.")
+                    Text("Tapping Play already plays here and starts Spotify when it is asleep. Use this to go back to this iPhone after picking another device.")
                 } else {
-                    Text("Spotify lists a device only while its app is on. The first time, Spotify asks you to allow Cabin Dash. Afterwards your phone appears in the list below.")
+                    Text("Tapping Play starts Spotify on this iPhone by itself. The first time, Spotify asks you to allow Cabin Dash.")
                 }
             }
 

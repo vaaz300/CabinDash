@@ -5,8 +5,8 @@ import SpotifyiOS
 /// Starts the Spotify app on this iPhone and brings the person straight back, using Spotify's iOS SDK.
 ///
 /// Spotify lists this iPhone as a place to play only while its own app is running, and the Web API cannot start it.
-/// The SDK's `authorizeAndPlayURI` can: it opens Spotify, Spotify plays (a blank address means the last song), and Spotify
-/// then opens Cabin Dash again by itself, so nobody has to switch apps by hand.
+/// The SDK's `authorizeAndPlayURI` can: it opens Spotify, Spotify plays the address it was given (a blank address means the
+/// last song), and Spotify then opens Cabin Dash again by itself, so nobody has to switch apps by hand.
 ///
 /// That is the only thing the SDK is used for. What plays, the queue, the library and the device list all still go
 /// through the Web API, and the SDK's own connection ("App Remote") is never opened.
@@ -23,14 +23,15 @@ final class SpotifyWake {
     private var remote: SPTAppRemote?
     private var waiting = false
 
-    /// Opens Spotify and asks it to play. `onNotInstalled` runs if there is no Spotify app on this iPhone to open.
-    func start(clientID: String, onNotInstalled: @escaping () -> Void) {
+    /// Opens Spotify and asks it to play `uri` (a song, album or playlist address; blank for the last song).
+    /// `onNotInstalled` runs if there is no Spotify app on this iPhone to open.
+    func start(clientID: String, uri: String = "", onNotInstalled: @escaping () -> Void) {
         guard let redirect = URL(string: SpotifyAuth.redirectURI) else { return }
         let configuration = SPTConfiguration(clientID: clientID, redirectURL: redirect)
         let remote = SPTAppRemote(configuration: configuration, logLevel: .error)
         self.remote = remote
         waiting = true
-        remote.authorizeAndPlayURI("", asRadio: false, additionalScopes: nil) { [weak self] installed in
+        remote.authorizeAndPlayURI(uri, asRadio: false, additionalScopes: nil) { [weak self] installed in
             guard !installed else { return }
             Task { @MainActor in
                 self?.waiting = false

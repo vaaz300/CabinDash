@@ -180,11 +180,66 @@ public enum SpotifyDevices {
         failure == .noActiveDevice ? chosenID : nil
     }
 
-    /// The line beside the speaker symbol: the device that is playing, else the one the person picked, else an invitation to pick.
+    /// The line beside the speaker symbol: the device that is playing, else the one the person picked, else this iPhone,
+    /// which is where Play goes when nothing else is picked.
     public static func lineText(playingOn: String?, chosenName: String?) -> String {
         if let name = playingOn, !name.isEmpty { return "Playing on \(name)" }
         if let name = chosenName, !name.isEmpty { return "Ready on \(name)" }
-        return "Choose device"
+        return "This iPhone"
+    }
+
+    /// Where a tap on Play sends the music.
+    public enum Route: Equatable, Sendable {
+        /// Send the play command to this device by its id. That works for a device Spotify does not yet count as active.
+        case device(SpotifyDevice)
+        /// No phone is listed, so the Spotify app on this iPhone is not running. It has to be started first.
+        case wakeThisPhone
+        /// The device list could not be read. Send the command with no device and let Spotify decide, as before.
+        case spotifyDecides
+    }
+
+    /// The device a tap on Play uses: the one the person picked in the list while it is still listed and takes commands,
+    /// otherwise the phone. A device being active is not a pick, and Cabin Dash never falls back to a TV or speaker the
+    /// person did not choose. With no usable phone the Spotify app on this iPhone has to be started.
+    public static func route(devices: [SpotifyDevice]?, chosenID: String?) -> Route {
+        guard let devices else { return .spotifyDecides }
+        if let chosenID, let picked = devices.first(where: { $0.id == chosenID && !$0.isRestricted }) {
+            return .device(picked)
+        }
+        if let phone = devices.first(where: { $0.type == "Smartphone" && !$0.isRestricted }) {
+            return .device(phone)
+        }
+        return .wakeThisPhone
+    }
+
+    /// What to ask Spotify's iOS SDK to play when it starts the Spotify app, and whether the request then has to be sent
+    /// again through the Web API. The SDK takes one address and no shuffle, so a song inside a playlist, a list of songs and
+    /// a shuffled playlist are each sent again once Spotify has opened Cabin Dash and the phone is listed.
+    public struct WakePlan: Equatable, Sendable {
+        public var uri: String
+        public var needsResend: Bool
+
+        public init(uri: String, needsResend: Bool) {
+            self.uri = uri
+            self.needsResend = needsResend
+        }
+    }
+
+    public static func wakePlan(for target: SpotifyPlayTarget, shuffled: Bool) -> WakePlan {
+        switch target {
+        case .context(let uri, let startAtURI):
+            if let startAtURI { return WakePlan(uri: startAtURI, needsResend: true) }
+            return WakePlan(uri: uri, needsResend: shuffled)
+        case .uris(let uris):
+            guard let first = uris.first else { return WakePlan(uri: "", needsResend: false) }
+            return WakePlan(uri: first, needsResend: uris.count > 1 || shuffled)
+        }
+    }
+
+    /// Whether the player shows the music on `device`, which is how a command that Spotify merely accepted is told apart from
+    /// one that started playing. A phone whose app is asleep accepts the command and then plays nothing.
+    public static func startedOn(_ device: SpotifyDevice, playingOn deviceName: String?) -> Bool {
+        deviceName == device.name
     }
 
     /// What to say once Spotify has accepted a move to `deviceName`. With nothing playing there is nothing to move, so the

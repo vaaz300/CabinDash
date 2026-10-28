@@ -202,9 +202,9 @@ final class SpotifyModel {
 
     /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
     ///
-    /// It plays on whichever device Spotify says is active. When none is, it tries the device the person picked in the list,
-    /// if they have picked one. It never chooses a device itself: with no pick, "no device ready" stays on screen with a way
-    /// to choose, because where the sound comes out is the person's decision.
+    /// This is the plain version, used when the device list could not be read: it plays on whichever device Spotify says is
+    /// active. When none is, it tries the device the person picked in the list, if they have picked one. Normally a tap on
+    /// Play goes through `SpotifyLibraryModel.play`, which picks this iPhone (or the person's pick) first.
     @discardableResult
     func play(_ target: SpotifyPlayTarget) async -> Bool {
         guard phase == .signedIn else { return false }
@@ -228,6 +228,26 @@ final class SpotifyModel {
         return failure == nil
     }
 
+    /// Starts playing on a named device, which Spotify accepts even for a device it does not yet count as active.
+    /// Nil when Spotify accepted it, otherwise why not. A failure is not shown here: the caller may have another way to
+    /// make it work (starting the Spotify app on the phone), so it calls `showPlayFailure` only when it has run out of them.
+    func play(_ target: SpotifyPlayTarget, on device: SpotifyDevice) async -> SpotifyFailure? {
+        guard phase == .signedIn else { return .notSignedIn }
+        let failure = await attempt(SpotifyEndpoint.play(target, deviceID: device.id))
+        if failure == nil {
+            board.commandSucceeded()
+            publishProblem()
+            try? await Task.sleep(for: .milliseconds(400))
+            await refresh()
+        }
+        return failure
+    }
+
+    /// Shows why a play command did not work.
+    func showPlayFailure(_ failure: SpotifyFailure) {
+        note(failure, fromCommand: true)
+    }
+
     /// Moves playback to a device the person picked and keeps playing there. True when Spotify accepted it.
     /// The pick is remembered even if Spotify declines the move, so the next play command still goes to that device.
     @discardableResult
@@ -237,7 +257,8 @@ final class SpotifyModel {
         return await command(SpotifyEndpoint.transfer(to: device.id, play: true))
     }
 
-    private func forgetChosenDevice() {
+    /// Goes back to the default, which is this iPhone.
+    func forgetChosenDevice() {
         chosenDeviceID = nil
         chosenDeviceName = nil
     }
