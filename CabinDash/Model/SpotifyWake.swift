@@ -14,10 +14,11 @@ import UIKit
 /// remembers the app for 24 hours instead of asking again. The connection is dropped when Cabin Dash leaves the screen and
 /// made again when it returns, as Spotify's sample app does.
 ///
-/// What plays, the queue, the library and the device list all still go through the Web API. The one thing the connection is
-/// used for besides staying awake is a second try at starting a song if the first one did not take.
+/// What plays, the queue, the library and the device list all still go through the Web API. The connection is also used for
+/// two things the Web API cannot be relied on for on this phone: it is the app's own word on what is playing (the web
+/// service has answered "nothing is playing" while the app was playing), and it carries play, pause, skip and seek for that case.
 @MainActor
-final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
+final class SpotifyWake: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerStateDelegate {
     enum Outcome: Equatable {
         /// Spotify opened Cabin Dash again and said it went well.
         case returned
@@ -27,6 +28,8 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
 
     /// Told each step in plain words, for the Spotify log in Settings. Never given a token.
     var onEvent: ((String) -> Void)?
+    /// Told what the Spotify app is playing whenever that changes, and nil when the connection is gone.
+    var onPlayback: ((RemotePlayback?) -> Void)?
 
     /// True while the connection to the Spotify app is up: Spotify is running and will answer.
     private(set) var isConnected = false
@@ -109,16 +112,29 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
         return isConnected
     }
 
-    /// Asks the Spotify app, through the connection, to play an address. False if there is no connection to ask through.
-    /// Spotify answers later and the answer goes to the log.
-    func play(_ uri: String) -> Bool {
-        guard isConnected, !uri.isEmpty, let api = remote?.playerAPI else { return false }
-        onEvent?("Asking Spotify directly to play \(uri)")
-        api.play(uri) { [weak self] _, error in
-            let problem = error?.localizedDescription
-            Task { @MainActor in
-                self?.onEvent?(problem.map { "Spotify would not play it directly: \($0)" } ?? "Spotify accepted the direct request")
-            }
+    // MARK: Controls through the connection
+
+    /// Each of these asks the Spotify app directly and returns false when there is no connection to ask through. The result
+    /// arrives as a change in what the app says is playing, so there is nothing to wait for.
+
+    func resume() -> Bool { send("resume") { $0.resume($1) } }
+
+    func pause() -> Bool { send("pause") { $0.pause($1) } }
+
+    func skipNext() -> Bool { send("skip to the next song") { $0.skip(toNext: $1) } }
+
+    func skipPrevious() -> Bool { send("skip to the previous song") { $0.skip(toPrevious: $1) } }
+
+    func seek(toSeconds seconds: Double) -> Bool {
+        let milliseconds = Int(max(0, seconds) * 1000)
+        return send("seek") { $0.seek(toPosition: milliseconds, callback: $1) }
+    }
+
+    private func send(_ what: String, _ command: (SPTAppRemotePlayerAPI, @escaping SPTAppRemoteCallback) -> Void) -> Bool {
+        guard isConnected, let api = remote?.playerAPI else { return false }
+        command(api) { [weak self] _, error in
+            guard let problem = error?.localizedDescription else { return }
+            Task { @MainActor in self?.onEvent?("Spotify would not \(what) directly: \(problem)") }
         }
         return true
     }
@@ -142,14 +158,17 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
         remote.disconnect()
         isConnected = false
         connecting = false
+        onPlayback?(nil)
     }
 
     nonisolated func appRemoteDidEstablishConnection(_ appRemote: SPTAppRemote) {
         Task { @MainActor [weak self] in
-            self?.isConnected = true
-            self?.connecting = false
-            self?.expectingConnection = false
-            self?.onEvent?("Connected to the Spotify app")
+            guard let self else { return }
+            self.isConnected = true
+            self.connecting = false
+            self.expectingConnection = false
+            self.onEvent?("Connected to the Spotify app")
+            self.listenToPlayer(of: appRemote)
         }
     }
 
@@ -158,6 +177,7 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
         Task { @MainActor [weak self] in
             self?.isConnected = false
             self?.connecting = false
+            self?.onPlayback?(nil)
             if self?.expectingConnection == true {
                 self?.onEvent?("Could not connect to the Spotify app: \(problem)")
                 self?.expectingConnection = false
@@ -170,7 +190,51 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate {
         Task { @MainActor [weak self] in
             self?.isConnected = false
             self?.connecting = false
+            self?.onPlayback?(nil)
             if let problem { self?.onEvent?("The Spotify app disconnected: \(problem)") }
         }
+    }
+
+    // MARK: What the Spotify app is playing
+
+    /// Asks to be told when the Spotify app's player changes, and reads it once now so the screen does not wait for a change.
+    private func listenToPlayer(of appRemote: SPTAppRemote) {
+        guard let api = appRemote.playerAPI else { return }
+        api.delegate = self
+        api.subscribe(toPlayerState: { [weak self] _, error in
+            guard let problem = error?.localizedDescription else { return }
+            Task { @MainActor in self?.onEvent?("Could not follow the Spotify app's player: \(problem)") }
+        })
+        api.getPlayerState { [weak self] result, error in
+            guard error == nil, let state = result as? SPTAppRemotePlayerState else { return }
+            let snapshot = Self.snapshot(of: state)
+            Task { @MainActor in self?.report(snapshot) }
+        }
+    }
+
+    nonisolated func playerStateDidChange(_ playerState: SPTAppRemotePlayerState) {
+        let snapshot = Self.snapshot(of: playerState)
+        Task { @MainActor [weak self] in self?.report(snapshot) }
+    }
+
+    private func report(_ snapshot: RemotePlayback) {
+        onEvent?("Spotify app says: \(snapshot.isPaused ? "paused" : "playing") \(snapshot.title.isEmpty ? snapshot.uri : snapshot.title)")
+        onPlayback?(snapshot)
+    }
+
+    /// Plain values out of the Spotify app's player state, taken at once because the state itself is not safe to pass around.
+    nonisolated private static func snapshot(of state: SPTAppRemotePlayerState) -> RemotePlayback {
+        let track = state.track
+        return RemotePlayback(
+            uri: track.uri,
+            title: track.name,
+            artist: track.artist.name,
+            album: track.album.name,
+            duration: TimeInterval(track.duration) / 1000,
+            position: TimeInterval(state.playbackPosition) / 1000,
+            isPaused: state.isPaused,
+            isShuffling: state.playbackOptions.isShuffling,
+            isAdvertisement: track.isAdvertisement
+        )
     }
 }

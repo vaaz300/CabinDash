@@ -202,13 +202,14 @@ public enum SpotifyDevices {
     /// otherwise the phone. A device being active is not a pick, and Cabin Dash never falls back to a TV or speaker the
     /// person did not choose. With no usable phone the Spotify app on this iPhone has to be started.
     ///
-    /// A phone is usable only if it can be expected to answer. Spotify's SDK documents that the Spotify app on an iPhone
-    /// stops listening soon after it leaves the screen without playing, while Spotify's list keeps showing it for a while.
-    /// So a phone counts when it is the active player, or when Cabin Dash is connected to the Spotify app (`phoneIsAwake`).
+    /// A phone is usable only if it is known to answer (`phoneIsAwake`). Spotify's SDK documents that the Spotify app on an
+    /// iPhone stops listening soon after it leaves the screen without playing, while Spotify's list keeps showing it, and
+    /// keeps calling it active. So what Spotify's list says about a phone is not evidence, and a phone that has not shown
+    /// it is awake goes straight to having Spotify started on it rather than being sent a command that nobody answers.
     public static func route(devices: [SpotifyDevice]?, chosenID: String?, phoneIsAwake: Bool) -> Route {
         guard let devices else { return .spotifyDecides }
         func usable(_ device: SpotifyDevice) -> Bool {
-            !device.isRestricted && (device.type != "Smartphone" || device.isActive || phoneIsAwake)
+            !device.isRestricted && (device.type != "Smartphone" || phoneIsAwake)
         }
         if let chosenID, let picked = devices.first(where: { $0.id == chosenID && usable($0) }) {
             return .device(picked)
@@ -217,6 +218,15 @@ public enum SpotifyDevices {
             return .device(phone)
         }
         return .wakeThisPhone
+    }
+
+    /// Whether the Spotify app on this iPhone can be expected to answer a command now. Cabin Dash being connected to it
+    /// proves that. So does the player showing this phone playing a moment ago: `playingOn` is the device the player names and
+    /// `isPlaying` whether it is playing, and the name must belong to a phone in the list. Nothing else does.
+    public static func phoneIsAwake(connected: Bool, devices: [SpotifyDevice]?, playingOn deviceName: String?, isPlaying: Bool) -> Bool {
+        if connected { return true }
+        guard isPlaying, let deviceName, let devices else { return false }
+        return devices.contains { $0.type == "Smartphone" && $0.name == deviceName }
     }
 
     /// What to ask Spotify's iOS SDK to play when it starts the Spotify app, and whether the request then has to be sent

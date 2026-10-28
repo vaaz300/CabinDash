@@ -49,6 +49,16 @@ final class SpotifyModel {
 
     let clientID: String
 
+    /// What the Spotify web service last said is playing, and when. Nil when it said nothing is playing anywhere.
+    @ObservationIgnored private var webPlaying: NowPlaying?
+    @ObservationIgnored private var webObservedAt = Date()
+    /// What the Spotify app on this iPhone last said it is playing, over the connection to it, and when. Nil when not connected.
+    @ObservationIgnored private var appPlaying: RemotePlayback?
+    @ObservationIgnored private var appObservedAt = Date()
+    /// The name Spotify gives this iPhone in its device list, once known, for labelling what the app says is playing.
+    @ObservationIgnored private var phoneName: String?
+    @ObservationIgnored private weak var app: SpotifyWake?
+
     @ObservationIgnored private var board = SpotifyProblemBoard()
     @ObservationIgnored private var token: SpotifyToken?
     @ObservationIgnored private let session: URLSession
@@ -138,21 +148,52 @@ final class SpotifyModel {
         do {
             let reply = try await perform(SpotifyEndpoint.player())
             if reply.status == 204 {
-                nowPlaying = nil
-                board.readAnswered(playing: false)
-                publishProblem()
+                webPlaying = nil
             } else if reply.isSuccess {
-                nowPlaying = SpotifyPlayback.parse(reply.data)
-                observedAt = Date()
-                board.readAnswered(playing: nowPlaying != nil)
-                publishProblem()
+                webPlaying = SpotifyPlayback.parse(reply.data)
+                webObservedAt = Date()
             } else {
                 throw reply.failure
             }
+            showWhatIsPlaying()
+            board.readAnswered(playing: nowPlaying != nil)
+            publishProblem()
             hasAnswered = true
         } catch {
             handle(error)
         }
+    }
+
+    // MARK: The Spotify app on this iPhone
+
+    /// Lets the Spotify app on this iPhone speak for itself. Spotify's web service has answered "nothing is playing" while that
+    /// app was playing, so while Cabin Dash is connected to the app, its word fills in whenever the web service has none.
+    func attach(_ app: SpotifyWake) {
+        self.app = app
+        app.onPlayback = { [weak self] state in self?.applyApp(state) }
+    }
+
+    private func applyApp(_ state: RemotePlayback?) {
+        appPlaying = state
+        appObservedAt = Date()
+        showWhatIsPlaying()
+    }
+
+    /// The name Spotify's device list gives this iPhone, so what the app says is playing can be said to be playing on it.
+    func setPhoneName(_ name: String?) {
+        phoneName = name
+    }
+
+    private func showWhatIsPlaying() {
+        nowPlaying = SpotifyPlayback.merged(web: webPlaying, remote: appPlaying, phoneName: phoneName, previous: nowPlaying)
+        observedAt = webPlaying != nil ? webObservedAt : appObservedAt
+    }
+
+    /// Runs `send` against the Spotify app when what is on screen came from it, because the web service knows no player to
+    /// steer then. False when the web service is the source, or the app cannot be asked.
+    private func throughTheApp(_ send: (SpotifyWake) -> Bool) -> Bool {
+        guard webPlaying == nil, appPlaying != nil, let app else { return false }
+        return send(app)
     }
 
     // MARK: Controls
@@ -163,18 +204,22 @@ final class SpotifyModel {
             nowPlaying?.isPlaying = !playing
             observedAt = Date()
         }
+        if throughTheApp({ playing ? $0.pause() : $0.resume() }) { return }
         await command(playing ? SpotifyEndpoint.pause() : SpotifyEndpoint.resume())
     }
 
     func skipNext() async {
+        if throughTheApp({ $0.skipNext() }) { return }
         await command(SpotifyEndpoint.next())
     }
 
     func skipPrevious() async {
+        if throughTheApp({ $0.skipPrevious() }) { return }
         await command(SpotifyEndpoint.previous())
     }
 
     func seek(toSeconds seconds: Double) async {
+        if throughTheApp({ $0.seek(toSeconds: seconds) }) { return }
         await command(SpotifyEndpoint.seek(milliseconds: Int(max(0, seconds) * 1000)))
     }
 
@@ -351,6 +396,8 @@ final class SpotifyModel {
     private func signOutLocally() {
         token = nil
         KeychainStore.delete(account: Self.tokenAccount)
+        webPlaying = nil
+        appPlaying = nil
         nowPlaying = nil
         hasAnswered = false
         forgetChosenDevice()

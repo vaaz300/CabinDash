@@ -13,7 +13,7 @@ struct NowPlayingPane: View {
             if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
                 PlayerView(spotify: spotify, playing: playing)
             } else {
-                StatePanel(spotify: spotify)
+                StatePanel(spotify: spotify, starting: model.library.starting)
             }
         }
         // The heart needs to know whether this song is liked, which is asked once per song while this pane is showing.
@@ -288,6 +288,8 @@ private struct LikeButton: View {
 /// The Music screen shows it whole when Spotify is not connected, and inside Now Playing when nothing is playing.
 struct StatePanel: View {
     let spotify: SpotifyModel
+    /// What is happening after a tap on Play, shown instead of "Nothing is playing" while it does.
+    var starting: String?
 
     var body: some View {
         VStack(spacing: 14) {
@@ -324,7 +326,11 @@ struct StatePanel: View {
                 Text("Connecting\u{2026}")
                     .font(.system(size: 18, weight: .semibold))
             case .signedIn:
-                if spotify.hasAnswered {
+                if let starting {
+                    ProgressView()
+                    Text(starting)
+                        .font(.system(size: 18, weight: .semibold))
+                } else if spotify.hasAnswered {
                     message(
                         symbol: "pause.circle",
                         title: "Nothing is playing",
