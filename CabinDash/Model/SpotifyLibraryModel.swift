@@ -481,6 +481,6 @@ final class SpotifyLibraryModel {
         try? await Task.sleep(for: .seconds(3))
         await spotify.refresh()
         guard epoch == self.epoch, spotify.phase == .signedIn, spotify.hasAnswered, spotify.nowPlaying == nil else { return }
-        toast.show("Spotify took the request but nothing is playing. Open Spotify once on this iPhone, then try again.")
+        toast.show("Spotify took the request but nothing is playing. In Devices, tap This iPhone to wake Spotify, then try again.")
     }
 }

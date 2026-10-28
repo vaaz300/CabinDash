@@ -39,6 +39,10 @@ struct RootView: View {
             PickerSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
         }
+        // Spotify opens Cabin Dash again with this after "Start Spotify on this iPhone".
+        .onOpenURL { url in
+            model.handleIncoming(url)
+        }
         // `self.model` (the environment value), not the local `@Bindable model` above: these closures are
         // @Sendable, and a local variable should not be captured by one.
         .task {

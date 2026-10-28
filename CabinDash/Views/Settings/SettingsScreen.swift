@@ -21,7 +21,7 @@ struct SettingsScreen: View {
         if model.spotify.phase == .needsReconnect {
             return "Cabin Dash now browses your playlists and likes songs, which needs a few more permissions. You only do this once."
         }
-        return "Needs a Spotify Premium account. Cabin Dash shows what the Spotify app is playing and sends play, pause and skip. Spotify keeps playing in its own app."
+        return "Needs a Spotify Premium account. Cabin Dash browses your playlists, shows what is playing and steers it. Spotify plays the sound in its own app."
     }
 
     /// The title sits above the list, not over it, so rows never scroll up underneath the word.
@@ -162,6 +162,11 @@ struct SettingsScreen: View {
 
                 Section {
                     LabeledContent("Version", value: version)
+                    // The Spotify developer dashboard needs this exact text under Bundle IDs, and a sideloading tool can change it.
+                    LabeledContent("Bundle ID") {
+                        Text(Bundle.main.bundleIdentifier ?? "unknown")
+                            .textSelection(.enabled)
+                    }
                 } header: {
                     Text("About")
                 } footer: {

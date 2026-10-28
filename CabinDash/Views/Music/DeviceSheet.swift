@@ -49,36 +49,39 @@ struct DeviceSheet: View {
     @ViewBuilder
     private func list(_ devices: [SpotifyDevice], library: SpotifyLibraryModel) -> some View {
         List {
-            // Spotify lists a phone only while its Spotify app is running. When this iPhone is missing, this row is how to
-            // wake it: it opens Spotify, and the phone shows up in the list below when the person comes back.
-            if !SpotifyDevices.hasPhone(in: devices) {
-                Section {
-                    Button {
-                        model.openSpotify()
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: "iphone")
-                                .font(.system(size: 20, weight: .semibold))
-                                .frame(width: 32)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("This iPhone")
-                                    .font(.system(size: 17, weight: .semibold))
-                                Text(SpotifyLink.label + " so it can play here")
-                                    .font(.system(size: 14, weight: .regular))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Spacer(minLength: 8)
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 16, weight: .semibold))
+            // Spotify lists a phone only while its Spotify app is running, and only Spotify can start it. This row opens
+            // Spotify, which plays and then returns here by itself. The phone then shows up in the list below.
+            let phoneListed = SpotifyDevices.hasPhone(in: devices)
+            Section {
+                Button {
+                    model.startSpotifyHere()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone")
+                            .font(.system(size: 20, weight: .semibold))
+                            .frame(width: 32)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(phoneListed ? "Start Spotify on this iPhone" : "This iPhone")
+                                .font(.system(size: 17, weight: .semibold))
+                            Text("Opens Spotify, plays your last song, then brings you back here")
+                                .font(.system(size: 14, weight: .regular))
                                 .foregroundStyle(.secondary)
-                                .accessibilityHidden(true)
                         }
-                        .foregroundStyle(.primary)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        Spacer(minLength: 8)
+                        Image(systemName: "arrow.up.right.square")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .accessibilityHidden(true)
                     }
-                } footer: {
-                    Text("Spotify lists a device only while its app is on. After opening Spotify, come back here and This iPhone appears in the list. Tap it, then pick something to play.")
+                    .foregroundStyle(.primary)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+            } footer: {
+                if phoneListed {
+                    Text("If a song will not start on this iPhone, the Spotify app has probably gone to sleep. This wakes it.")
+                } else {
+                    Text("Spotify lists a device only while its app is on. The first time, Spotify asks you to allow Cabin Dash. Afterwards your phone appears in the list below.")
                 }
             }
 

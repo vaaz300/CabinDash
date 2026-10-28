@@ -33,7 +33,7 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
    * App name: `Cabin Dash` (anything).
    * Description: anything.
    * **Redirect URI:** type exactly `cabindash://spotify-callback` and press **Add**. It must match to the letter, or Spotify refuses to sign you in. (Spotify's own page lists only the name, description and terms on the create dialog and puts redirect addresses under **Edit Settings**. If your create form has no Redirect URI field, create the app first and add it in the app's **Settings**.)
-   * If it asks which API/SDKs you plan to use: tick **Web API** only. Do not tick **iOS**, and leave any **Bundle IDs** field empty. Cabin Dash signs in through Apple's in-app web sheet and talks to the Web API. It does not use Spotify's iOS SDK (that one needs the Spotify app open and a Bundle ID), so nothing in the app reads those settings. Spotify's pages don't describe this selector, so if your form shows something that doesn't match, tell me what it says rather than guessing.
+   * If it asks which API/SDKs you plan to use: tick **Web API** and **iOS**. Cabin Dash signs in and does all its work through the Web API. It uses Spotify's iOS SDK for one thing only: the **This iPhone** button in the device list, which starts the Spotify app and brings you straight back (see "Start Spotify on this iPhone" below). That needs **iOS** ticked and your app's **Bundle ID** entered in the dashboard. Spotify's pages don't describe this form in full, so if yours shows something that doesn't match, tell me what it says rather than guessing.
    * Accept the terms and **Save**.
 3. Open the app's **Settings**. Copy the **Client ID**. (It is a public identifier, not a password. You do not need the Client Secret and should not use it.)
 4. If the app has a **User Management** tab, add yourself: your name and the email address of your Spotify account. In development mode Spotify limits who can sign in, and its pages do not say whether the owner is added automatically. Adding yourself does no harm.
@@ -45,6 +45,18 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
 7. On the iPhone: open Cabin Dash, tap **Music** in the dock (the music-note button), then **Connect Spotify.** Spotify's own page opens in a sheet. Sign in and press **Agree.** You land back in Cabin Dash.
 8. Start a song in the Spotify app. Go back to Cabin Dash. Music shows it, the Home screen's music widget shows it, and the buttons work. From then on you can start things from Cabin Dash itself (**Playlists**, **Liked**, **Search**). Keep the Spotify app running in the background on the iPhone: it is what makes the sound.
 
+## Start Spotify on this iPhone (so you do not switch apps by hand)
+
+Spotify lists this iPhone as a place to play only while the Spotify app is running, and only the Spotify app can start itself. Music > the device line > **This iPhone** (or **Start Spotify on this iPhone** when the phone is already listed) opens Spotify, plays your last song, and Spotify opens Cabin Dash again by itself. It uses Spotify's iOS SDK for that one step.
+
+**One-time dashboard setup (your PC, about two minutes):**
+
+1. Install the new build, open Cabin Dash > **Settings > About**, and read the **Bundle ID**. Touch and hold it to copy. It can differ from the one in the source: a sideloading tool such as iLoader may rewrite it, and Spotify needs the one the phone really has.
+2. In the Spotify dashboard, open your app > **Settings** (Edit Settings). Under **Bundle IDs** add that exact text. Make sure **iOS** is ticked in the list of APIs/SDKs. The **Redirect URI** stays `cabindash://spotify-callback`; do not add another.
+3. Save. On the iPhone: Music > the device line > **This iPhone**. The first time, Spotify shows a page asking you to allow Cabin Dash to control it. Tap **Agree**. You land back in Cabin Dash and music from your last session is playing on the phone.
+
+If Spotify refuses, Cabin Dash shows what Spotify said at the bottom of the screen. The usual cause is a Bundle ID in the dashboard that does not match Settings > About exactly.
+
 ## If something goes wrong
 
 | What Cabin Dash says | What it means |
@@ -55,6 +67,9 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
 | **Spotify only lets Premium accounts control playback** | The account is not Premium. |
 | **Open Spotify and start playing something** | Spotify has no active device. Play something in the Spotify app, then try again. |
 | **Spotify has no device ready to play** (with a **Devices** button) | Spotify knows no device to play on. Tap **Devices**. If this iPhone is not in the list, tap **This iPhone**, which opens Spotify; come back to Cabin Dash and the iPhone appears in the list. Tap the device you want, then pick something to play. Cabin Dash never chooses a device for you; once you have picked one, it plays there when Spotify has no active device. |
+| **Spotify declined: ...** after tapping **This iPhone** | Spotify refused the hand-over. Check the Bundle ID in the dashboard against Settings > About, and that **iOS** is ticked. |
+| **The Spotify app isn't installed on this iPhone** | There is no Spotify app to start. Install it from the App Store and sign in. |
+| **Spotify took the request but nothing is playing** | The Spotify app has gone to sleep. In Devices tap **This iPhone** (or **Start Spotify on this iPhone**), then try again. |
 | **Connect Spotify again** | You signed in before Phase 2 added permissions. Tap it and press **Agree** once. |
 | A playlist says Spotify only lets Cabin Dash list tracks in playlists you own | Spotify's rule for development-mode apps. Play and Shuffle still work. |
 | The heart is dim | Cabin Dash has not heard yet whether the song is in your Liked Songs. Tapping it asks again. |

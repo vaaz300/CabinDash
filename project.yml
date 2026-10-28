@@ -9,6 +9,11 @@ options:
 packages:
   CabinCore:
     path: CabinCore
+  # Spotify's own iOS SDK, used for one thing: starting the Spotify app on this iPhone and coming straight back.
+  # See CabinDash/Model/SpotifyWake.swift and docs/SPOTIFY-RULES.md.
+  SpotifyiOS:
+    url: https://github.com/spotify/ios-sdk
+    exactVersion: 5.0.1
 
 # Signing (team, bundle id, signing style) lives in Config/Signing.xcconfig, with personal values in the
 # git-ignored Config/Signing.local.xcconfig. Do not add DEVELOPMENT_TEAM or CODE_SIGN_STYLE here: a value
@@ -32,6 +37,8 @@ targets:
     dependencies:
       - package: CabinCore
         product: CabinCore
+      - package: SpotifyiOS
+        product: SpotifyiOS
     settings:
       base:
         # Comes from Config/Signing.xcconfig (CABIN_BUNDLE_ID), so a personal id never has to be committed.
@@ -54,6 +61,11 @@ targets:
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         SpotifyClientID: $(SPOTIFY_CLIENT_ID)
+        # Spotify opens Cabin Dash through this scheme once it has started playing (the redirect address in the Spotify dashboard).
+        CFBundleURLTypes:
+          - CFBundleURLName: $(PRODUCT_BUNDLE_IDENTIFIER)
+            CFBundleURLSchemes:
+              - cabindash
         # The CarPlay-style layout is landscape only.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationLandscapeLeft

@@ -23,6 +23,8 @@ final class AppModel {
     /// Playlists, Liked Songs, search and the queue, for the Music screen.
     let library: SpotifyLibraryModel
     let route = RouteModel()
+    /// Starts the Spotify app on this iPhone and brings the person back, so they need not switch apps by hand.
+    let spotifyWake = SpotifyWake()
 
     /// True while the car is going faster than about 8 km/h. Assigned only when it changes, so screens do not redraw on every GPS fix.
     private(set) var isMoving = false
@@ -186,6 +188,28 @@ final class AppModel {
     func openSpotify(uri: String? = nil) {
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         open(SpotifyLink.openURLs(forURI: uri), failure: "Couldn't open Spotify")
+    }
+
+    /// Starts Spotify on this iPhone, plays the last song there, and returns to Cabin Dash by itself. Spotify asks once for permission.
+    func startSpotifyHere() {
+        guard !spotify.clientID.isEmpty else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        spotifyWake.start(clientID: spotify.clientID) { [weak self] in
+            self?.toast.show("The Spotify app isn't installed on this iPhone")
+        }
+    }
+
+    /// A link that opened Cabin Dash. The only ones expected are Spotify's answer to `startSpotifyHere`; anything else is ignored.
+    func handleIncoming(_ url: URL) {
+        guard let outcome = spotifyWake.finish(with: url) else { return }
+        if case .refused(let text) = outcome {
+            toast.show("Spotify declined: \(text)")
+        }
+        // Spotify is now playing here, or has said why not. Either way, look again at what it is doing.
+        Task {
+            await self.spotify.refresh()
+            await self.library.reloadDevices()
+        }
     }
 
     func navigate(to place: Place) {
