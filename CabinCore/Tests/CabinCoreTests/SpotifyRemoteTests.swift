@@ -15,9 +15,12 @@ import Testing
         )
     }
 
-    private func web(uri: String = "spotify:track:t", art: URL? = URL(string: "https://i.scdn.co/image/a")) -> NowPlaying {
+    private func web(
+        uri: String = "spotify:track:t", art: URL? = URL(string: "https://i.scdn.co/image/a"), device: String = "Xiaomi TV Box",
+        progress: TimeInterval = 100
+    ) -> NowPlaying {
         NowPlaying(
-            title: "Acquainted", subtitle: "The Weeknd", artworkURL: art, isPlaying: true, deviceName: "Xiaomi TV Box",
+            title: "Acquainted", subtitle: "The Weeknd", artworkURL: art, progress: progress, isPlaying: true, deviceName: device,
             uri: uri, albumURI: "spotify:album:a"
         )
     }
@@ -88,5 +91,76 @@ import Testing
         #expect(!shown.canSkipNext)
         #expect(!shown.canSkipPrevious)
         #expect(!shown.canSeek)
+    }
+
+    // While Cabin Dash is connected to the Spotify app, the app knows better than the web service what this phone is doing:
+    // the web service kept saying "playing" for a phone whose Spotify app had stopped, so the bar moved and nothing played.
+
+    @Test func theAppIsRightAboutThePhoneWhenBothNameTheSameSong() throws {
+        let shown = try #require(SpotifyPlayback.merged(
+            web: web(device: "Evan's iPhone"), remote: remote(paused: true), phoneName: "Evan's iPhone", previous: nil
+        ))
+        #expect(!shown.isPlaying)
+        #expect(shown.progress == 12)
+        #expect(shown.artworkURL == web().artworkURL)
+        #expect(shown.title == "Acquainted")
+    }
+
+    @Test func theAppIsRightWhenThePhoneHasMovedOnToAnotherSong() throws {
+        let stale = web(uri: "spotify:track:old", device: "Evan's iPhone")
+        let shown = try #require(SpotifyPlayback.merged(web: stale, remote: remote(), phoneName: "Evan's iPhone", previous: stale))
+        #expect(shown.uri == "spotify:track:t")
+        #expect(shown.deviceName == "Evan's iPhone")
+        #expect(shown.artworkURL == nil)
+    }
+
+    @Test func theWebServiceKeepsItsWordWhenThePhoneIsNotKnown() {
+        let onThePhone = web(device: "Evan's iPhone")
+        #expect(SpotifyPlayback.merged(web: onThePhone, remote: remote(paused: true), phoneName: nil, previous: nil) == onThePhone)
+    }
+
+    @Test func theWebServiceKeepsItsWordWhenTheAppSaysNothing() {
+        let onThePhone = web(device: "Evan's iPhone")
+        #expect(SpotifyPlayback.merged(web: onThePhone, remote: nil, phoneName: "Evan's iPhone", previous: nil) == onThePhone)
+        #expect(SpotifyPlayback.merged(web: onThePhone, remote: remote(uri: ""), phoneName: "Evan's iPhone", previous: nil) == onThePhone)
+    }
+
+    @Test func theWebServiceKeepsItsWordForMusicOnAnotherDeviceEvenIfTheAppHasAPausedSong() {
+        #expect(SpotifyPlayback.merged(web: web(), remote: remote(paused: true), phoneName: "Evan's iPhone", previous: nil) == web())
+    }
+}
+
+/// Play, pause, skip and seek go to the Spotify app when it is the better informed: connected, and either the only source or
+/// the one Spotify's web service also names as playing on this phone. Music on a TV or speaker is never steered through the phone.
+@Suite struct SpotifyControlRouteTests {
+    private let song = RemotePlayback(uri: "spotify:track:t", title: "Acquainted")
+
+    private func web(on device: String) -> NowPlaying {
+        NowPlaying(title: "Acquainted", isPlaying: true, deviceName: device, uri: "spotify:track:t")
+    }
+
+    @Test func theAppAloneIsEnough() {
+        #expect(SpotifyPlayback.controlsGoToApp(web: nil, remote: song, phoneName: "Evan's iPhone", connected: true))
+    }
+
+    @Test func theAppIsUsedWhenTheWebServiceNamesThePhone() {
+        #expect(SpotifyPlayback.controlsGoToApp(web: web(on: "Evan's iPhone"), remote: song, phoneName: "Evan's iPhone", connected: true))
+    }
+
+    @Test func aTVOrSpeakerIsNeverSteeredThroughThePhone() {
+        #expect(!SpotifyPlayback.controlsGoToApp(web: web(on: "Xiaomi TV Box"), remote: song, phoneName: "Evan's iPhone", connected: true))
+    }
+
+    @Test func withoutTheConnectionTheWebServiceIsUsed() {
+        #expect(!SpotifyPlayback.controlsGoToApp(web: nil, remote: song, phoneName: "Evan's iPhone", connected: false))
+    }
+
+    @Test func withoutASongInTheAppTheWebServiceIsUsed() {
+        #expect(!SpotifyPlayback.controlsGoToApp(web: nil, remote: nil, phoneName: "Evan's iPhone", connected: true))
+        #expect(!SpotifyPlayback.controlsGoToApp(web: nil, remote: RemotePlayback(uri: "", title: ""), phoneName: "Evan's iPhone", connected: true))
+    }
+
+    @Test func aWebAnswerWithNoKnownPhoneIsNotGuessedAbout() {
+        #expect(!SpotifyPlayback.controlsGoToApp(web: web(on: "Evan's iPhone"), remote: song, phoneName: nil, connected: true))
     }
 }

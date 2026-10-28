@@ -215,41 +215,57 @@ import Testing
     }
 }
 
-/// Starting Spotify on the phone through its SDK can play one address. Whatever that cannot express is sent again, through
-/// the Web API, once Spotify has come back and the phone is listed.
+/// Starting Spotify on the phone through its SDK plays one address, and that is left alone afterwards: a second play command
+/// sent to the Spotify app once it is in the background restarts the song and the app stopped answering. What the SDK cannot
+/// express is added through the connection to the Spotify app instead, which neither restarts nor replaces anything: the
+/// next songs of a list go into the queue, and a shuffle is switched on.
 @Suite struct SpotifyWakePlanTests {
     @Test func aPlaylistStartsFromItself() {
         let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: nil), shuffled: false)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p", needsResend: false))
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p"))
     }
 
     @Test func anAlbumStartsFromItself() {
         let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:album:a", startAtURI: nil), shuffled: false)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:album:a", needsResend: false))
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:album:a"))
     }
 
-    @Test func aShuffledPlaylistStartsAndIsThenShuffled() {
+    @Test func aShuffledPlaylistStartsAndIsThenShuffledThroughTheConnection() {
         let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: nil), shuffled: true)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p", needsResend: true))
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p", shuffleAfter: true))
     }
 
-    @Test func aSongInAPlaylistStartsWithThatSongAndIsThenPutBackInItsPlaylist() {
+    @Test func aSongInAPlaylistStartsWithThatSongAlone() {
         let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: "spotify:track:t"), shuffled: false)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t", needsResend: true))
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t"))
     }
 
     @Test func aSingleSongNeedsNothingMore() {
         let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:t"]), shuffled: false)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t", needsResend: false))
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t"))
     }
 
-    @Test func aListOfSongsStartsWithTheFirstAndIsThenSentWhole() {
-        let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:a", "spotify:track:b"]), shuffled: false)
-        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:a", needsResend: true))
+    @Test func aListOfSongsStartsWithTheFirstAndQueuesTheNext() {
+        let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:a", "spotify:track:b", "spotify:track:c"]), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:a", followUps: ["spotify:track:b", "spotify:track:c"]))
+    }
+
+    @Test func aLongListQueuesOnlyTheNextTwenty() {
+        let uris = (0..<40).map { "spotify:track:\($0)" }
+        let plan = SpotifyDevices.wakePlan(for: .uris(uris), shuffled: false)
+        #expect(plan.uri == "spotify:track:0")
+        #expect(plan.followUps.count == 20)
+        #expect(plan.followUps.first == "spotify:track:1")
+        #expect(plan.followUps.last == "spotify:track:20")
+    }
+
+    @Test func aShuffledListIsShuffledAfterwards() {
+        let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:a", "spotify:track:b"]), shuffled: true)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:a", followUps: ["spotify:track:b"], shuffleAfter: true))
     }
 
     @Test func nothingToPlayStartsSpotifyAndSendsNothing() {
-        #expect(SpotifyDevices.wakePlan(for: .uris([]), shuffled: false) == SpotifyDevices.WakePlan(uri: "", needsResend: false))
+        #expect(SpotifyDevices.wakePlan(for: .uris([]), shuffled: false) == SpotifyDevices.WakePlan(uri: ""))
     }
 }
 
