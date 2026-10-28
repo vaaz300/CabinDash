@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CabinCore
 
+/// What the device picker needs to know about phones. Spotify lists a phone only while its Spotify app is running.
 @Suite struct SpotifyDevicePhoneTests {
     private func device(_ id: String, type: String, restricted: Bool = false, active: Bool = false) -> SpotifyDevice {
         SpotifyDevice(id: id, name: "Device \(id)", type: type, isActive: active, isRestricted: restricted)
