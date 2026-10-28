@@ -58,6 +58,9 @@ final class SpotifyModel {
     /// The name Spotify gives this iPhone in its device list, once known, for labelling what the app says is playing.
     @ObservationIgnored private var phoneName: String?
     @ObservationIgnored private weak var app: SpotifyWake?
+    /// Told, in plain words, whenever the web service's answer about what is playing changes, for the Spotify log in Settings.
+    @ObservationIgnored var onNote: ((String) -> Void)?
+    @ObservationIgnored private var lastWebNote = ""
 
     @ObservationIgnored private var board = SpotifyProblemBoard()
     @ObservationIgnored private var token: SpotifyToken?
@@ -155,6 +158,7 @@ final class SpotifyModel {
             } else {
                 throw reply.failure
             }
+            noteWebAnswer()
             showWhatIsPlaying()
             board.readAnswered(playing: nowPlaying != nil)
             publishProblem()
@@ -185,14 +189,32 @@ final class SpotifyModel {
     }
 
     private func showWhatIsPlaying() {
-        nowPlaying = SpotifyPlayback.merged(web: webPlaying, remote: appPlaying, phoneName: phoneName, previous: nowPlaying)
-        observedAt = webPlaying != nil ? webObservedAt : appObservedAt
+        let shown = SpotifyPlayback.merged(web: webPlaying, remote: appPlaying, phoneName: phoneName, previous: nowPlaying)
+        nowPlaying = shown
+        // The position counts on from the moment the source it came from was read.
+        let fromApp = shown != nil && shown?.uri == appPlaying?.uri && shown?.progress == appPlaying?.position
+        observedAt = fromApp ? appObservedAt : webObservedAt
     }
 
-    /// Runs `send` against the Spotify app when what is on screen came from it, because the web service knows no player to
-    /// steer then. False when the web service is the source, or the app cannot be asked.
+    /// One line in the log each time the web service's answer changes, so a disagreement with the Spotify app can be seen.
+    private func noteWebAnswer() {
+        let text: String
+        if let web = webPlaying {
+            text = "Web service: \(web.isPlaying ? "playing" : "paused") \(web.title) on \(web.deviceName ?? "an unknown device")"
+        } else {
+            text = "Web service: nothing is playing"
+        }
+        guard text != lastWebNote else { return }
+        lastWebNote = text
+        onNote?(text)
+    }
+
+    /// Runs `send` against the Spotify app when it is the better informed about what is on screen (see
+    /// `SpotifyPlayback.controlsGoToApp`). False when the web service should be used, or the app cannot be asked.
     private func throughTheApp(_ send: (SpotifyWake) -> Bool) -> Bool {
-        guard webPlaying == nil, appPlaying != nil, let app else { return false }
+        guard let app, SpotifyPlayback.controlsGoToApp(
+            web: webPlaying, remote: appPlaying, phoneName: phoneName, connected: app.isConnected
+        ) else { return false }
         return send(app)
     }
 

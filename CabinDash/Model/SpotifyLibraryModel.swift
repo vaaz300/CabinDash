@@ -77,6 +77,7 @@ final class SpotifyLibraryModel {
         }
         // The Spotify app speaks for itself about what is playing on this iPhone, and carries the buttons when it does.
         spotify.attach(wake)
+        spotify.onNote = { [weak self] text in self?.log.add(text) }
     }
 
     // MARK: Network
@@ -514,11 +515,14 @@ final class SpotifyLibraryModel {
     }
 
     /// Plays where the person expects with no step in between: on the device they picked in the list, otherwise on this
-    /// iPhone. Spotify lists the phone while its app is running, but the app stops answering soon after it leaves the screen
-    /// without playing, and Spotify's list cannot tell. So a phone is only trusted when Cabin Dash is connected to the Spotify
-    /// app or the player has just shown it playing. Otherwise the Spotify app is started at once with what was tapped, and
-    /// returns here by itself. Now Playing says what is happening from the moment of the tap.
-    private func start(_ target: SpotifyPlayTarget, shuffled: Bool, mayStartSpotify: Bool = true) async {
+    /// iPhone. Now Playing says what is happening from the moment of the tap.
+    ///
+    /// On this iPhone the Spotify app is asked directly through the connection to it when there is one, which is how Spotify
+    /// documents playing on the same phone. Without a connection the Spotify app is started with what was tapped and returns
+    /// here by itself. The web service is not used to start music on this phone: it treats the phone as a device to hand
+    /// playback to, and a second play command sent after the hand-over restarted the song and left the app unanswering.
+    /// Any other device the person picked (a TV, a speaker) is sent the command by the web service.
+    private func start(_ target: SpotifyPlayTarget, shuffled: Bool) async {
         guard spotify.phase == .signedIn else { return }
         let epoch = self.epoch
         section = .nowPlaying
@@ -533,27 +537,17 @@ final class SpotifyLibraryModel {
             listed = "could not be read"
         }
         log.add("Devices: \(listed)")
-        let awake = phoneIsAwake(in: list)
-        let route = SpotifyDevices.route(devices: list, chosenID: spotify.chosenDeviceID, phoneIsAwake: awake)
+        let route = SpotifyDevices.route(devices: list, chosenID: spotify.chosenDeviceID, phoneIsAwake: wake.isConnected)
         switch route {
-        case .device(let device):
+        case .device(let device) where device.type != "Smartphone":
             log.add("Using \(device.name)")
-            await play(target, shuffled: shuffled, on: device, mayStartSpotify: mayStartSpotify)
-        case .wakeThisPhone where mayStartSpotify:
-            log.add("This iPhone is not known to be awake: starting Spotify on it")
-            handOver(target, shuffled: shuffled)
-        case .wakeThisPhone, .spotifyDecides:
-            log.add("No phone to use; letting Spotify choose")
+            await play(target, shuffled: shuffled, on: device)
+        case .device, .wakeThisPhone:
+            playOnThisPhone(target, shuffled: shuffled)
+        case .spotifyDecides:
+            log.add("Devices unknown; letting Spotify choose")
             await playOnWhatSpotifyChooses(target, shuffled: shuffled)
         }
-    }
-
-    /// Whether the Spotify app on this iPhone is known to answer: connected to it, or the player is showing a phone playing.
-    private func phoneIsAwake(in devices: [SpotifyDevice]?) -> Bool {
-        SpotifyDevices.phoneIsAwake(
-            connected: wake.isConnected, devices: devices,
-            playingOn: spotify.nowPlaying?.deviceName, isPlaying: spotify.nowPlaying?.isPlaying ?? false
-        )
     }
 
     private static func describeTarget(_ target: SpotifyPlayTarget) -> String {
@@ -583,73 +577,76 @@ final class SpotifyLibraryModel {
         }
     }
 
-    private func play(_ target: SpotifyPlayTarget, shuffled: Bool, on device: SpotifyDevice, mayStartSpotify: Bool) async {
-        let epoch = self.epoch
-        // A device Spotify already counts as active takes shuffle at once, so the first song is already shuffled.
-        var shuffleSet = false
-        if shuffled, device.isActive { shuffleSet = await spotify.setShuffle(true) }
-        if let failure = await spotify.play(target, on: device) {
-            log.add("\(device.name) refused: \(failure.message)")
-            // The phone was listed a moment ago but will not take the command: its Spotify app went to sleep in between.
-            if failure == .noActiveDevice, device.type == "Smartphone", mayStartSpotify {
-                handOver(target, shuffled: shuffled)
-            } else {
-                endStarting()
-                spotify.showPlayFailure(failure)
+    // MARK: On this iPhone
+
+    /// Connected to the Spotify app: ask it to play, then add what the address alone could not say. Not connected: start the
+    /// Spotify app with what was tapped, which is the only thing that wakes it.
+    private func playOnThisPhone(_ target: SpotifyPlayTarget, shuffled: Bool) {
+        let plan = SpotifyDevices.wakePlan(for: target, shuffled: shuffled)
+        if wake.isConnected, !plan.uri.isEmpty {
+            log.add("Connected to the Spotify app: asking it to play")
+            let asked = wake.play(plan.uri) { [weak self] accepted in
+                guard let self else { return }
+                Task { await self.afterAskingDirectly(accepted: accepted, plan: plan, target: target, shuffled: shuffled) }
             }
-            return
+            if asked { return }
         }
-        log.add("\(device.name) accepted the request")
-        guard epoch == self.epoch else { return }
-        if shuffled, !shuffleSet { await spotify.setShuffle(true) }
-        await confirmPlaying(on: device, target: target, shuffled: shuffled, mayStartSpotify: mayStartSpotify)
+        log.add("Not connected to the Spotify app: starting Spotify on this iPhone")
+        handOver(target, shuffled: shuffled)
     }
 
-    /// Looks at the player, once a second for up to `seconds`, until the music shows up on `device`. Spotify accepts a play
-    /// command for a phone whose app has gone to sleep and then plays nothing, so "accepted" is not "playing".
-    private func waitForMusic(on device: SpotifyDevice, seconds: Int) async -> Bool {
+    private func afterAskingDirectly(
+        accepted: Bool, plan: SpotifyDevices.WakePlan, target: SpotifyPlayTarget, shuffled: Bool
+    ) async {
+        let epoch = self.epoch
+        guard accepted else {
+            handOver(target, shuffled: shuffled)
+            return
+        }
+        addWhatTheAddressCouldNotSay(plan)
+        if await waitForAnyMusic(seconds: 6) {
+            guard epoch == self.epoch else { return }
+            log.add("Playing")
+            endStarting()
+            return
+        }
+        guard epoch == self.epoch else { return }
+        // The app accepted the request and nothing played: the same remedy as without a connection, once.
+        log.add("Nothing playing after the Spotify app accepted the request: starting Spotify on this iPhone")
+        handOver(target, shuffled: shuffled)
+    }
+
+    /// The next songs of a list go in the queue and a shuffle is switched on, both through the connection, which replaces
+    /// nothing that is playing.
+    private func addWhatTheAddressCouldNotSay(_ plan: SpotifyDevices.WakePlan) {
+        if !plan.followUps.isEmpty, wake.enqueue(plan.followUps) {
+            log.add("Queued the next \(plan.followUps.count) song\(plan.followUps.count == 1 ? "" : "s")")
+        }
+        if plan.shuffleAfter, wake.setShuffle(true) {
+            log.add("Switched shuffle on")
+        }
+    }
+
+    /// Looks at the player, once a second for up to `seconds`, until something is playing.
+    private func waitForAnyMusic(seconds: Int) async -> Bool {
         let epoch = self.epoch
         for second in 0...seconds {
             if second > 0 { try? await Task.sleep(for: .seconds(1)) }
             await spotify.refresh()
             guard epoch == self.epoch, spotify.phase == .signedIn else { return false }
-            if SpotifyDevices.startedOn(device, playingOn: spotify.nowPlaying?.deviceName) { return true }
+            if spotify.nowPlaying?.isPlaying == true { return true }
         }
         return false
     }
 
-    /// After Spotify accepted a play command: wait for the music to show on that device. If it does not, and the device is
-    /// the phone, start Spotify on it, which does work. If Spotify was only just started and it still is not playing, say so
-    /// instead of leaving the person looking at a silent screen. No further command is sent on top of the one that was sent.
-    private func confirmPlaying(
-        on device: SpotifyDevice, target: SpotifyPlayTarget, shuffled: Bool, mayStartSpotify: Bool
-    ) async {
-        let epoch = self.epoch
-        if await waitForMusic(on: device, seconds: mayStartSpotify ? 5 : 8) {
-            log.add("Playing on \(device.name)")
-            endStarting()
-            return
-        }
-        guard epoch == self.epoch, spotify.phase == .signedIn else { return }
-        let playingOn = spotify.nowPlaying?.deviceName
-        log.add("Not playing on \(device.name) (\(playingOn.map { "player shows \($0)" } ?? "player shows nothing"))")
-        if mayStartSpotify, device.type == "Smartphone" {
-            handOver(target, shuffled: shuffled)
-            return
-        }
-        endStarting()
-        log.add("Giving up on \(device.name)")
-        toast.show("Spotify took the request but nothing is playing on \(device.name).")
-    }
-
     /// Starts the Spotify app on this iPhone with what the person tapped. Spotify plays it and then opens Cabin Dash again
-    /// by itself; `handleIncoming` finishes whatever Spotify's iOS SDK could not express (a shuffle, a song's place in its playlist).
+    /// by itself; `handleIncoming` then adds what the address could not say.
     private func handOver(_ target: SpotifyPlayTarget, shuffled: Bool) {
         let plan = SpotifyDevices.wakePlan(for: target, shuffled: shuffled)
         pending = PendingPlay(target: target, shuffled: shuffled)
         section = .nowPlaying
         showStarting("Opening Spotify\u{2026}")
-        log.add("Hand-over: \(plan.uri.isEmpty ? "last song" : plan.uri), then \(plan.needsResend ? "send the rest again" : "nothing more to send")")
+        log.add("Hand-over: \(plan.uri.isEmpty ? "last song" : plan.uri)")
         wake.start(clientID: spotify.clientID, uri: plan.uri) { [weak self] in
             guard let self else { return }
             // With no Spotify app on this iPhone there is no phone to play on, so leave it to whatever device Spotify has.
@@ -657,6 +654,72 @@ final class SpotifyLibraryModel {
             self.toast.show("The Spotify app isn't installed on this iPhone")
             Task { await self.playOnWhatSpotifyChooses(target, shuffled: shuffled) }
         }
+    }
+
+    /// Spotify is back here and is playing, or has said why not. Wait for the connection, add what the address could not say,
+    /// and then only watch. Nothing is sent to the Spotify app's playback after this except through the connection.
+    private func finishHandOver() async {
+        let epoch = self.epoch
+        let waiting = pending
+        pending = nil
+        guard let waiting else {
+            await spotify.refresh()
+            await reloadDevices()
+            endStarting()
+            return
+        }
+        showStarting("Waiting for Spotify\u{2026}")
+        let connected = await wake.waitUntilConnected(seconds: 5)
+        guard epoch == self.epoch else { return }
+        let plan = SpotifyDevices.wakePlan(for: waiting.target, shuffled: waiting.shuffled)
+        if connected {
+            addWhatTheAddressCouldNotSay(plan)
+        } else if !plan.followUps.isEmpty || plan.shuffleAfter {
+            log.add("Not connected to the Spotify app: leaving \(plan.uri) playing without the rest")
+        }
+        _ = await readDevices()
+        let playing = await waitForAnyMusic(seconds: 8)
+        guard epoch == self.epoch else { return }
+        endStarting()
+        if playing {
+            log.add("Playing")
+        } else {
+            log.add("Nothing is playing after the hand-over")
+            toast.show("Spotify opened but nothing is playing. Try again.")
+        }
+    }
+
+    // MARK: On another device, or whichever Spotify chooses
+
+    /// A TV or speaker the person picked: the web service sends the command, and the player is watched for a few seconds,
+    /// because a device can accept a command and then play nothing.
+    private func play(_ target: SpotifyPlayTarget, shuffled: Bool, on device: SpotifyDevice) async {
+        let epoch = self.epoch
+        // A device Spotify already counts as active takes shuffle at once, so the first song is already shuffled.
+        var shuffleSet = false
+        if shuffled, device.isActive { shuffleSet = await spotify.setShuffle(true) }
+        if let failure = await spotify.play(target, on: device) {
+            log.add("\(device.name) refused: \(failure.message)")
+            endStarting()
+            spotify.showPlayFailure(failure)
+            return
+        }
+        log.add("\(device.name) accepted the request")
+        guard epoch == self.epoch else { return }
+        if shuffled, !shuffleSet { await spotify.setShuffle(true) }
+        for second in 0...5 {
+            if second > 0 { try? await Task.sleep(for: .seconds(1)) }
+            await spotify.refresh()
+            guard epoch == self.epoch, spotify.phase == .signedIn else { return }
+            if SpotifyDevices.startedOn(device, playingOn: spotify.nowPlaying?.deviceName) {
+                log.add("Playing on \(device.name)")
+                endStarting()
+                return
+            }
+        }
+        endStarting()
+        log.add("Not playing on \(device.name) (\(spotify.nowPlaying?.deviceName.map { "player shows \($0)" } ?? "player shows nothing"))")
+        toast.show("Spotify took the request but nothing is playing on \(device.name).")
     }
 
     /// The plain way, used when the device list could not be read or there is no Spotify app to start: Spotify's active
@@ -710,59 +773,5 @@ final class SpotifyLibraryModel {
             toast.show("Spotify declined: \(text)")
         }
         Task { await self.finishHandOver() }
-    }
-
-    /// Spotify is back here and is playing, or has said why not. Wait for the connection and for the phone to answer (Spotify
-    /// announces it a moment after it starts). What the hand-over asked Spotify to play is already playing. If more has to be
-    /// sent (the rest of a list, a shuffle), it is sent once, and then the player is watched. Nothing else is stacked on it.
-    private func finishHandOver() async {
-        let epoch = self.epoch
-        let waiting = pending
-        pending = nil
-        guard let waiting else {
-            await spotify.refresh()
-            await reloadDevices()
-            endStarting()
-            return
-        }
-        showStarting("Waiting for Spotify\u{2026}")
-        _ = await wake.waitUntilConnected(seconds: 4)
-        var ready: SpotifyDevice?
-        for attempt in 1...8 {
-            guard epoch == self.epoch else { return }
-            let list = await readDevices()
-            await spotify.refresh()
-            if case .device(let device) = SpotifyDevices.route(
-                devices: list, chosenID: spotify.chosenDeviceID, phoneIsAwake: phoneIsAwake(in: list)
-            ) {
-                ready = device
-                break
-            }
-            log.add("Waiting for this iPhone to answer (\(attempt) of 8)")
-            try? await Task.sleep(for: .milliseconds(800))
-        }
-        guard epoch == self.epoch else { return }
-        guard let device = ready else {
-            endStarting()
-            log.add("This iPhone never showed up as ready")
-            if spotify.nowPlaying?.isPlaying != true {
-                toast.show("Spotify opened but this iPhone isn't ready yet. Try again in a moment.")
-            }
-            return
-        }
-        let plan = SpotifyDevices.wakePlan(for: waiting.target, shuffled: waiting.shuffled)
-        if !plan.needsResend {
-            // Spotify was asked for exactly what was tapped. Give it time to show up before sending anything again.
-            var playing = SpotifyDevices.startedOn(device, playingOn: spotify.nowPlaying?.deviceName)
-            if !playing { playing = await waitForMusic(on: device, seconds: 6) }
-            if playing {
-                log.add("Playing on \(device.name)")
-                endStarting()
-                return
-            }
-            log.add("Still nothing on \(device.name): asking once more")
-        }
-        // Not allowed to start Spotify again: a second hop would only repeat what just happened.
-        await play(waiting.target, shuffled: waiting.shuffled, on: device, mayStartSpotify: false)
     }
 }

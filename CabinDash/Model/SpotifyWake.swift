@@ -44,6 +44,8 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     private var connecting = false
     /// Failures to connect are only worth a log line when one was expected, not every time the app comes back to the screen.
     private var expectingConnection = false
+    /// Counts connection attempts, so a timeout only ends the attempt it was started for.
+    private var connectAttempt = 0
 
     override init() {
         super.init()
@@ -112,7 +114,37 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
         return isConnected
     }
 
-    // MARK: Controls through the connection
+    // MARK: Playing and controls through the connection
+
+    /// Asks the Spotify app to play an address (a song, album or playlist). False when there is no connection to ask through.
+    /// `done` is told whether the app accepted it. This is the way Spotify documents for playing on the same iPhone; the web
+    /// service treats this phone as a device to hand playback to, which was unreliable.
+    func play(_ uri: String, done: @escaping (Bool) -> Void) -> Bool {
+        guard isConnected, !uri.isEmpty, let api = remote?.playerAPI else { return false }
+        onEvent?("Asking the Spotify app to play \(uri)")
+        api.play(uri) { [weak self] _, error in
+            let problem = error?.localizedDescription
+            Task { @MainActor in
+                if let problem { self?.onEvent?("The Spotify app would not play it: \(problem)") }
+                done(problem == nil)
+            }
+        }
+        return true
+    }
+
+    /// Puts songs in the queue after the one playing, in order. False when there is no connection or nothing to add.
+    func enqueue(_ uris: [String]) -> Bool {
+        guard isConnected, !uris.isEmpty, let api = remote?.playerAPI else { return false }
+        for uri in uris {
+            api.enqueueTrackUri(uri) { [weak self] _, error in
+                guard let problem = error?.localizedDescription else { return }
+                Task { @MainActor in self?.onEvent?("The Spotify app would not queue a song: \(problem)") }
+            }
+        }
+        return true
+    }
+
+    func setShuffle(_ on: Bool) -> Bool { send("set shuffle") { $0.setShuffle(on, callback: $1) } }
 
     /// Each of these asks the Spotify app directly and returns false when there is no connection to ask through. The result
     /// arrives as a change in what the app says is playing, so there is nothing to wait for.
@@ -144,7 +176,17 @@ final class SpotifyWake: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     private func connect() {
         guard let remote, accessToken != nil, !connecting, !remote.isConnected else { return }
         connecting = true
+        connectAttempt += 1
+        let attempt = connectAttempt
+        if expectingConnection { onEvent?("Connecting to the Spotify app") }
         remote.connect()
+        // An attempt that is never answered must not block the next one.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard let self, self.connectAttempt == attempt, self.connecting, !self.isConnected else { return }
+            self.connecting = false
+            self.onEvent?("The Spotify app did not answer the connection within 8 seconds")
+        }
     }
 
     @objc private func appBecameActive() {

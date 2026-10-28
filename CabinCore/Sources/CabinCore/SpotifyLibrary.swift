@@ -202,7 +202,7 @@ public enum SpotifyDevices {
     /// otherwise the phone. A device being active is not a pick, and Cabin Dash never falls back to a TV or speaker the
     /// person did not choose. With no usable phone the Spotify app on this iPhone has to be started.
     ///
-    /// A phone is usable only if it is known to answer (`phoneIsAwake`). Spotify's SDK documents that the Spotify app on an
+    /// A phone is usable only if it is known to answer (`phoneIsAwake`: Cabin Dash is connected to its Spotify app). Spotify's SDK documents that the Spotify app on an
     /// iPhone stops listening soon after it leaves the screen without playing, while Spotify's list keeps showing it, and
     /// keeps calling it active. So what Spotify's list says about a phone is not evidence, and a phone that has not shown
     /// it is awake goes straight to having Spotify started on it rather than being sent a command that nobody answers.
@@ -220,36 +220,34 @@ public enum SpotifyDevices {
         return .wakeThisPhone
     }
 
-    /// Whether the Spotify app on this iPhone can be expected to answer a command now. Cabin Dash being connected to it
-    /// proves that. So does the player showing this phone playing a moment ago: `playingOn` is the device the player names and
-    /// `isPlaying` whether it is playing, and the name must belong to a phone in the list. Nothing else does.
-    public static func phoneIsAwake(connected: Bool, devices: [SpotifyDevice]?, playingOn deviceName: String?, isPlaying: Bool) -> Bool {
-        if connected { return true }
-        guard isPlaying, let deviceName, let devices else { return false }
-        return devices.contains { $0.type == "Smartphone" && $0.name == deviceName }
-    }
-
-    /// What to ask Spotify's iOS SDK to play when it starts the Spotify app, and whether the request then has to be sent
-    /// again through the Web API. The SDK takes one address and no shuffle, so a song inside a playlist, a list of songs and
-    /// a shuffled playlist are each sent again once Spotify has opened Cabin Dash and the phone is listed.
+    /// What to ask the Spotify app on this iPhone to play, and what to add once it is playing. The SDK takes one address and no
+    /// shuffle. Whatever it cannot express is not sent to the Spotify app again as a second play command, which restarted the
+    /// song and left the app unanswering; it is added through the connection to the app, which replaces nothing: the next songs
+    /// of a list go into the queue (`followUps`) and a shuffle is switched on (`shuffleAfter`). A song tapped inside a
+    /// playlist or album therefore plays alone, and what follows is what Spotify plays next.
     public struct WakePlan: Equatable, Sendable {
         public var uri: String
-        public var needsResend: Bool
+        public var followUps: [String]
+        public var shuffleAfter: Bool
 
-        public init(uri: String, needsResend: Bool) {
+        public init(uri: String, followUps: [String] = [], shuffleAfter: Bool = false) {
             self.uri = uri
-            self.needsResend = needsResend
+            self.followUps = followUps
+            self.shuffleAfter = shuffleAfter
         }
     }
+
+    /// How many of the songs after the first are queued.
+    public static let maxFollowUps = 20
 
     public static func wakePlan(for target: SpotifyPlayTarget, shuffled: Bool) -> WakePlan {
         switch target {
         case .context(let uri, let startAtURI):
-            if let startAtURI { return WakePlan(uri: startAtURI, needsResend: true) }
-            return WakePlan(uri: uri, needsResend: shuffled)
+            if let startAtURI { return WakePlan(uri: startAtURI, shuffleAfter: shuffled) }
+            return WakePlan(uri: uri, shuffleAfter: shuffled)
         case .uris(let uris):
-            guard let first = uris.first else { return WakePlan(uri: "", needsResend: false) }
-            return WakePlan(uri: first, needsResend: uris.count > 1 || shuffled)
+            guard let first = uris.first else { return WakePlan(uri: "") }
+            return WakePlan(uri: first, followUps: Array(uris.dropFirst().prefix(maxFollowUps)), shuffleAfter: shuffled)
         }
     }
 
