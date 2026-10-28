@@ -55,6 +55,10 @@ Spotify lists this iPhone as a place to play only while the Spotify app is runni
 2. In the Spotify dashboard, open your app > **Settings** (Edit Settings). Under **Bundle IDs** add that exact text. Make sure **iOS** is ticked in the list of APIs/SDKs. The **Redirect URI** stays `cabindash://spotify-callback`; do not add another.
 3. Save. On the iPhone: tap Play on a playlist (or Music > the device line > **This iPhone**). The first time, Spotify shows a page asking you to allow Cabin Dash to control it. Tap **Agree**. You land back in Cabin Dash and music from your last session is playing on the phone.
 
+After the first hop Cabin Dash also connects to the Spotify app, which Spotify's documentation says lets it skip the Agree page for the next 24 hours. If the Agree page keeps appearing every time, tell me.
+
+**If something goes wrong:** Settings > **Spotify log** lists the steps Cabin Dash took, newest first (no passwords or tokens). Tap **Copy log**, or take a screenshot, and send it to me.
+
 If Spotify refuses, Cabin Dash shows what Spotify said at the bottom of the screen. The usual cause is a Bundle ID in the dashboard that does not match Settings > About exactly.
 
 ## If something goes wrong

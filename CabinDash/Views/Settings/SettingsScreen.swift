@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import CabinCore
 
 /// Settings as a screen of its own, reached from the gear at the bottom of the dock.
@@ -93,6 +94,28 @@ struct SettingsScreen: View {
                     Text("Spotify")
                 } footer: {
                     Text(spotifyFooter)
+                }
+
+                if model.spotify.phase != .notConfigured {
+                    Section {
+                        DisclosureGroup("Spotify log") {
+                            let log = model.library.log
+                            if log.lines.isEmpty {
+                                Text("Nothing yet. Play something, then look here.")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text(log.text)
+                                    .font(.system(size: 12, design: .monospaced))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .textSelection(.enabled)
+                                Button("Copy log") { UIPasteboard.general.string = log.text }
+                                Button("Clear log", role: .destructive) { log.clear() }
+                            }
+                        }
+                    } footer: {
+                        Text("The steps Cabin Dash took the last times it started music, newest first. It holds no passwords or sign-in tokens and nothing leaves the phone. If playing goes wrong, a screenshot of this tells me what happened.")
+                    }
                 }
 
                 Section {

@@ -201,12 +201,19 @@ public enum SpotifyDevices {
     /// The device a tap on Play uses: the one the person picked in the list while it is still listed and takes commands,
     /// otherwise the phone. A device being active is not a pick, and Cabin Dash never falls back to a TV or speaker the
     /// person did not choose. With no usable phone the Spotify app on this iPhone has to be started.
-    public static func route(devices: [SpotifyDevice]?, chosenID: String?) -> Route {
+    ///
+    /// A phone is usable only if it can be expected to answer. Spotify's SDK documents that the Spotify app on an iPhone
+    /// stops listening soon after it leaves the screen without playing, while Spotify's list keeps showing it for a while.
+    /// So a phone counts when it is the active player, or when Cabin Dash is connected to the Spotify app (`phoneIsAwake`).
+    public static func route(devices: [SpotifyDevice]?, chosenID: String?, phoneIsAwake: Bool) -> Route {
         guard let devices else { return .spotifyDecides }
-        if let chosenID, let picked = devices.first(where: { $0.id == chosenID && !$0.isRestricted }) {
+        func usable(_ device: SpotifyDevice) -> Bool {
+            !device.isRestricted && (device.type != "Smartphone" || device.isActive || phoneIsAwake)
+        }
+        if let chosenID, let picked = devices.first(where: { $0.id == chosenID && usable($0) }) {
             return .device(picked)
         }
-        if let phone = devices.first(where: { $0.type == "Smartphone" && !$0.isRestricted }) {
+        if let phone = devices.first(where: { $0.type == "Smartphone" && usable($0) }) {
             return .device(phone)
         }
         return .wakeThisPhone
