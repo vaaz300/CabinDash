@@ -2,32 +2,40 @@ import Foundation
 import Testing
 @testable import CabinCore
 
-@Suite struct SpotifyDevicePickTests {
-    private func device(_ id: String, restricted: Bool = false, active: Bool = false) -> SpotifyDevice {
-        SpotifyDevice(id: id, name: "Device \(id)", type: "Speaker", isActive: active, isRestricted: restricted)
+@Suite struct SpotifyDevicePhoneTests {
+    private func device(_ id: String, type: String, restricted: Bool = false, active: Bool = false) -> SpotifyDevice {
+        SpotifyDevice(id: id, name: "Device \(id)", type: type, isActive: active, isRestricted: restricted)
     }
 
-    @Test func noDevicesGivesNoTarget() {
-        #expect(SpotifyDevices.autoTarget([]) == nil)
+    @Test func noDevicesMeansNoPhone() {
+        #expect(!SpotifyDevices.hasPhone(in: []))
     }
 
-    @Test func oneDeviceIsTheTarget() {
-        #expect(SpotifyDevices.autoTarget([device("a")])?.id == "a")
+    @Test func aTVBoxAloneIsNotAPhone() {
+        // The case that matters: Spotify lists only a phone's app while it is running, so a list with just the TV box
+        // means the phone's Spotify app has not been opened lately.
+        #expect(!SpotifyDevices.hasPhone(in: [device("tv", type: "TV", active: true)]))
+        #expect(!SpotifyDevices.hasPhone(in: [device("tv", type: "CastVideo"), device("s", type: "Speaker")]))
     }
 
-    @Test func twoDevicesGiveNoTarget() {
-        // Never guess between a phone and a speaker: the person picks.
-        #expect(SpotifyDevices.autoTarget([device("a"), device("b")]) == nil)
-        #expect(SpotifyDevices.autoTarget([device("a"), device("b", active: true)]) == nil)
+    @Test func aSmartphoneIsAPhone() {
+        #expect(SpotifyDevices.hasPhone(in: [device("tv", type: "TV", active: true), device("p", type: "Smartphone")]))
     }
 
-    @Test func aRestrictedDeviceDoesNotCount() {
-        #expect(SpotifyDevices.autoTarget([device("a", restricted: true), device("b")])?.id == "b")
+    @Test func aRestrictedPhoneDoesNotCount() {
+        #expect(!SpotifyDevices.hasPhone(in: [device("p", type: "Smartphone", restricted: true)]))
     }
 
-    @Test func onlyRestrictedGivesNone() {
-        #expect(SpotifyDevices.autoTarget([device("a", restricted: true)]) == nil)
-        #expect(SpotifyDevices.autoTarget([device("a", restricted: true), device("b", restricted: true)]) == nil)
+    @Test func phonesComeFirstAndEachGroupKeepsSpotifysOrder() {
+        let list = [
+            device("tv", type: "TV", active: true), device("p1", type: "Smartphone"),
+            device("sp", type: "Speaker"), device("p2", type: "Smartphone"),
+        ]
+        #expect(SpotifyDevices.phonesFirst(list).map(\.id) == ["p1", "p2", "tv", "sp"])
+    }
+
+    @Test func phonesFirstOfAnEmptyListIsEmpty() {
+        #expect(SpotifyDevices.phonesFirst([]).isEmpty)
     }
 }
 
