@@ -6,11 +6,6 @@ import SwiftUI
 struct MusicScreen: View {
     @Environment(AppModel.self) private var model
 
-    /// The route banner floats over the top right of every screen but the Map. Leave room for it.
-    private var routeBannerShowing: Bool {
-        !Strips.visible(on: .music, musicActive: false, routeGuiding: model.route.phase == .guiding).isEmpty
-    }
-
     var body: some View {
         @Bindable var library = model.library
         let spotify = model.spotify
@@ -45,7 +40,8 @@ struct MusicScreen: View {
         .padding(.leading, CarLayout.railReserve)
         .padding(.trailing, CarLayout.edge)
         .padding(.bottom, CarLayout.edge)
-        .padding(.top, routeBannerShowing ? 74 : CarLayout.edge)
+        // The route banner floats over the top right of every screen but the Map. Start below it.
+        .padding(.top, StripClearance.top(for: model.visibleStrips))
         .sheet(isPresented: $library.devicePickerPresented) {
             DeviceSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
@@ -72,59 +68,92 @@ private struct SectionContent: View {
     }
 }
 
-/// The section pills, then which device is playing and the link back to Spotify.
+/// Two rows. The sections get the whole width of the first, so none of them is squeezed or cut off.
+/// Which device is playing and the link back to Spotify sit on the second.
 private struct SectionBar: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        VStack(spacing: 6) {
+            SectionPills()
+            HStack(spacing: 12) {
+                DeviceChip()
+                Spacer(minLength: 12)
+                SpotifyAttribution(uri: model.spotify.nowPlaying?.uri)
+                    .layoutPriority(1)
+            }
+        }
+    }
+}
+
+/// The five sections, spread evenly across the row. If a narrow phone cannot fit them at full size they scroll instead of shrinking.
+private struct SectionPills: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
         let library = model.library
-        HStack(spacing: 10) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                ForEach(MusicSection.allCases, id: \.self) { section in
+                    SectionPill(section: section, selected: library.section == section, expands: true) {
+                        library.section = section
+                    }
+                }
+            }
             ScrollView(.horizontal) {
                 HStack(spacing: 8) {
                     ForEach(MusicSection.allCases, id: \.self) { section in
-                        SectionPill(section: section, selected: library.section == section) {
+                        SectionPill(section: section, selected: library.section == section, expands: false) {
                             library.section = section
                         }
                     }
                 }
             }
             .scrollIndicators(.hidden)
-
-            // Which device is playing. Tapping it opens the list, so it is also how to pick one when none is ready.
-            let device = model.spotify.nowPlaying?.deviceName ?? ""
-            Button {
-                library.devicePickerPresented = true
-            } label: {
-                Label(device.isEmpty ? "Choose device" : "Playing on \(device)", systemImage: "speaker.wave.2.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .padding(.horizontal, 10)
-                    .frame(maxWidth: 220, minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(PressScaleStyle(scale: 0.95))
-            .accessibilityLabel(device.isEmpty ? "Choose device" : "Playing on \(device). Choose another device")
-            SpotifyAttribution(uri: model.spotify.nowPlaying?.uri)
         }
+    }
+}
+
+/// Which device is playing. Tapping it opens the list, so it is also how to pick one when none is ready.
+private struct DeviceChip: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let device = model.spotify.nowPlaying?.deviceName ?? ""
+        Button {
+            model.library.devicePickerPresented = true
+        } label: {
+            Label(device.isEmpty ? "Choose device" : "Playing on \(device)", systemImage: "speaker.wave.2.fill")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, 6)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.97))
+        .accessibilityLabel(device.isEmpty ? "Choose device" : "Playing on \(device). Choose another device")
     }
 }
 
 private struct SectionPill: View {
     let section: MusicSection
     let selected: Bool
+    /// True in the evenly spread row, where each pill takes an equal share of the width.
+    let expands: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Label(section.title, systemImage: section.symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
+                .lineLimit(1)
                 .foregroundStyle(selected ? onAccent : Color.primary)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
+                .padding(.horizontal, 18)
+                .frame(maxWidth: expands ? CGFloat.infinity : nil, minHeight: 46)
                 .background(selected ? Theme.accent : Color.primary.opacity(0.10), in: Capsule())
         }
-        .buttonStyle(PressScaleStyle(scale: 0.95))
+        .buttonStyle(PressScaleStyle(scale: 0.96))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }

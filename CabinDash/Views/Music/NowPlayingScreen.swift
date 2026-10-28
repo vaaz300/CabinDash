@@ -56,10 +56,10 @@ private struct PlayerView: View {
                     }
 
                     ProgressBar(spotify: spotify, duration: playing.duration, canSeek: playing.canSeek)
-                        .padding(.top, 18)
+                        .padding(.top, 12)
 
                     Controls(spotify: spotify, track: playing)
-                        .padding(.top, 10)
+                        .padding(.top, 6)
 
                     Spacer(minLength: 0)
                 }
@@ -221,7 +221,7 @@ private struct ControlButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .bold))
                 .foregroundStyle(.primary)
-                .frame(width: 72, height: 64)
+                .frame(width: 72, height: 56)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.88))

@@ -7,12 +7,7 @@ struct StripStack: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let spotify = model.spotify
-        let strips = Strips.visible(
-            on: model.router.current,
-            musicActive: spotify.phase == .signedIn && spotify.nowPlaying != nil,
-            routeGuiding: model.route.phase == .guiding
-        )
+        let strips = model.visibleStrips
 
         VStack(alignment: .trailing, spacing: 8) {
             ForEach(strips, id: \.self) { strip in
@@ -29,6 +24,37 @@ struct StripStack: View {
         }
         .frame(maxWidth: 380)
         .animation(.easeOut(duration: 0.2), value: strips)
+    }
+}
+
+extension AppModel {
+    /// The strips floating over the current screen. `StripStack` draws them, and screens that start below them ask here.
+    var visibleStrips: [Strip] {
+        Strips.visible(
+            on: router.current,
+            musicActive: spotify.phase == .signedIn && spotify.nowPlaying != nil,
+            routeGuiding: route.phase == .guiding
+        )
+    }
+}
+
+/// How far down a screen must start so its content sits below the strips instead of under them.
+/// The heights are those of the strips as drawn below; if a strip changes size, change them here too.
+enum StripClearance {
+    private static let routeHeight: CGFloat = 56
+    private static let musicHeight: CGFloat = 52
+    private static let spacing: CGFloat = 8
+
+    /// The top padding for a screen: the usual edge when nothing floats there, otherwise room for the strips and a gap under them.
+    static func top(for strips: [Strip]) -> CGFloat {
+        guard !strips.isEmpty else { return CarLayout.edge }
+        let heights = strips.reduce(CGFloat(0)) { total, strip in
+            switch strip {
+            case .route: return total + routeHeight
+            case .music: return total + musicHeight
+            }
+        }
+        return CarLayout.edge + heights + spacing * CGFloat(strips.count - 1) + spacing
     }
 }
 

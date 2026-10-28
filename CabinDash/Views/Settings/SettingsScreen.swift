@@ -24,150 +24,159 @@ struct SettingsScreen: View {
         return "Needs a Spotify Premium account. Cabin Dash shows what the Spotify app is playing and sends play, pause and skip. Spotify keeps playing in its own app."
     }
 
+    /// The title sits above the list, not over it, so rows never scroll up underneath the word.
+    private var header: some View {
+        Text("Settings")
+            .font(.system(size: 28, weight: .bold))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
+            .accessibilityAddTraits(.isHeader)
+    }
+
     var body: some View {
         @Bindable var model = model
 
-        Form {
-            Section {
-                Picker("Speed", selection: $model.prefs.units) {
-                    ForEach(Units.allCases, id: \.self) { units in
-                        Text(units.speedLabel).tag(units)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Picker("Directions with", selection: $model.prefs.navApp) {
-                    ForEach(NavApp.allCases, id: \.self) { app in
-                        Text(app.title).tag(app)
-                    }
-                }
-                Toggle("Keep screen on", isOn: $model.prefs.keepAwake)
-                Toggle("Passenger mode", isOn: $model.prefs.passengerMode)
-            } header: {
-                Text("Driving")
-            } footer: {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("The Map screen plans routes with Apple Maps. \u{201C}Open in\u{2026}\u{201D} hands the trip to this app, which does the real turn-by-turn. Google Maps and Waze use their website if they aren't installed.")
-                    Text("Cabin Dash turns off typing, such as music search, while you are moving faster than about 8 km/h. Turn this on if someone else is using the screen.")
-                }
-            }
-
-            Section {
-                LabeledContent("Status", value: model.spotify.statusText)
-                switch model.spotify.phase {
-                case .notConfigured:
-                    EmptyView()
-                case .signedOut:
-                    Button("Connect Spotify") {
-                        Task { await self.model.spotify.signIn() }
-                    }
-                case .needsReconnect:
-                    Button("Connect Spotify again") {
-                        Task { await self.model.spotify.signIn() }
-                    }
-                case .signingIn:
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text("Waiting for Spotify\u{2026}")
-                            .foregroundStyle(.secondary)
-                    }
-                case .signedIn:
-                    Button("Disconnect Spotify", role: .destructive) {
-                        model.spotify.signOut()
-                    }
-                }
-            } header: {
-                Text("Spotify")
-            } footer: {
-                Text(spotifyFooter)
-            }
-
-            Section {
-                Picker("Theme", selection: $model.prefs.theme) {
-                    ForEach(ThemeChoice.allCases, id: \.self) { choice in
-                        Text(choice.title).tag(choice)
-                    }
-                }
-                .pickerStyle(.segmented)
-                WallpaperChooser()
-            } header: {
-                Text("Appearance")
-            }
-
-            Section {
-                Toggle("Show Other apps in the dock", isOn: $model.prefs.showOtherApps)
-            } header: {
-                Text("Other apps")
-            } footer: {
-                Text("Adds an Apps button that lists apps installed on this iPhone. Opening one leaves Cabin Dash.")
-            }
-
-            if model.prefs.showOtherApps {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            Form {
                 Section {
-                    Toggle("Show installed apps automatically", isOn: $model.prefs.autoDetect)
-                    Button("Add apps\u{2026}") { showPicker = true }
-                    Button("Refresh icons") {
-                        Task { await self.model.refreshIcons() }
-                    }
-                    Button("Reset apps", role: .destructive) { confirmReset = true }
-                } header: {
-                    Text("Apps")
-                } footer: {
-                    Text("Cabin Dash finds apps by asking iOS whether their link is registered. It can only do that for apps on its list. Others can be added by hand.")
-                }
-            }
-
-            Section {
-                ForEach($model.prefs.places) { $place in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Image(systemName: place.kind.symbol)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22)
-                            TextField("Name", text: $place.name)
+                    Picker("Speed", selection: $model.prefs.units) {
+                        ForEach(Units.allCases, id: \.self) { units in
+                            Text(units.speedLabel).tag(units)
                         }
-                        TextField("Address", text: $place.address, axis: .vertical)
-                            .textContentType(.fullStreetAddress)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 30)
+                    }
+                    .pickerStyle(.segmented)
+                    Picker("Directions with", selection: $model.prefs.navApp) {
+                        ForEach(NavApp.allCases, id: \.self) { app in
+                            Text(app.title).tag(app)
+                        }
+                    }
+                    Toggle("Keep screen on", isOn: $model.prefs.keepAwake)
+                    Toggle("Passenger mode", isOn: $model.prefs.passengerMode)
+                } header: {
+                    Text("Driving")
+                } footer: {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("The Map screen plans routes with Apple Maps. \u{201C}Open in\u{2026}\u{201D} hands the trip to this app, which does the real turn-by-turn. Google Maps and Waze use their website if they aren't installed.")
+                        Text("Cabin Dash turns off typing, such as music search, while you are moving faster than about 8 km/h. Turn this on if someone else is using the screen.")
                     }
                 }
-                .onDelete { offsets in
-                    model.prefs.places.remove(atOffsets: offsets)
-                }
-                Button {
-                    model.prefs.places.append(Place(name: "New place"))
-                } label: {
-                    Label("Add place", systemImage: "plus")
-                }
-            } header: {
-                Text("Places")
-            } footer: {
-                Text("Saved places appear on the Map screen for one-tap routes. Planning a route sends the address to Apple Maps.")
-            }
 
-            Section {
-                LabeledContent("Version", value: version)
-            } header: {
-                Text("About")
-            } footer: {
-                Text("Cabin Dash is not CarPlay. It's a self-contained driving app that runs on the iPhone's own screen, so it works in any car. Music is controlled through Spotify, which keeps playing in its own app.")
+                Section {
+                    LabeledContent("Status", value: model.spotify.statusText)
+                    switch model.spotify.phase {
+                    case .notConfigured:
+                        EmptyView()
+                    case .signedOut:
+                        Button("Connect Spotify") {
+                            Task { await self.model.spotify.signIn() }
+                        }
+                    case .needsReconnect:
+                        Button("Connect Spotify again") {
+                            Task { await self.model.spotify.signIn() }
+                        }
+                    case .signingIn:
+                        HStack(spacing: 10) {
+                            ProgressView()
+                            Text("Waiting for Spotify\u{2026}")
+                                .foregroundStyle(.secondary)
+                        }
+                    case .signedIn:
+                        Button("Disconnect Spotify", role: .destructive) {
+                            model.spotify.signOut()
+                        }
+                    }
+                } header: {
+                    Text("Spotify")
+                } footer: {
+                    Text(spotifyFooter)
+                }
+
+                Section {
+                    Picker("Theme", selection: $model.prefs.theme) {
+                        ForEach(ThemeChoice.allCases, id: \.self) { choice in
+                            Text(choice.title).tag(choice)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    WallpaperChooser()
+                } header: {
+                    Text("Appearance")
+                }
+
+                Section {
+                    Toggle("Show Other apps in the dock", isOn: $model.prefs.showOtherApps)
+                } header: {
+                    Text("Other apps")
+                } footer: {
+                    Text("Adds an Apps button that lists apps installed on this iPhone. Opening one leaves Cabin Dash.")
+                }
+
+                if model.prefs.showOtherApps {
+                    Section {
+                        Toggle("Show installed apps automatically", isOn: $model.prefs.autoDetect)
+                        Button("Add apps\u{2026}") { showPicker = true }
+                        Button("Refresh icons") {
+                            Task { await self.model.refreshIcons() }
+                        }
+                        Button("Reset apps", role: .destructive) { confirmReset = true }
+                    } header: {
+                        Text("Apps")
+                    } footer: {
+                        Text("Cabin Dash finds apps by asking iOS whether their link is registered. It can only do that for apps on its list. Others can be added by hand.")
+                    }
+                }
+
+                Section {
+                    ForEach($model.prefs.places) { $place in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                Image(systemName: place.kind.symbol)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 22)
+                                TextField("Name", text: $place.name)
+                            }
+                            TextField("Address", text: $place.address, axis: .vertical)
+                                .textContentType(.fullStreetAddress)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 30)
+                        }
+                    }
+                    .onDelete { offsets in
+                        model.prefs.places.remove(atOffsets: offsets)
+                    }
+                    Button {
+                        model.prefs.places.append(Place(name: "New place"))
+                    } label: {
+                        Label("Add place", systemImage: "plus")
+                    }
+                } header: {
+                    Text("Places")
+                } footer: {
+                    Text("Saved places appear on the Map screen for one-tap routes. Planning a route sends the address to Apple Maps.")
+                }
+
+                Section {
+                    LabeledContent("Version", value: version)
+                } header: {
+                    Text("About")
+                } footer: {
+                    Text("Cabin Dash is not CarPlay. It's a self-contained driving app that runs on the iPhone's own screen, so it works in any car. Music is controlled through Spotify, which keeps playing in its own app.")
+                }
             }
-        }
-        .scrollContentBackground(.hidden)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            Text("Settings")
-                .font(.system(size: 28, weight: .bold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 14)
-                .padding(.bottom, 4)
-                .accessibilityAddTraits(.isHeader)
+            .scrollContentBackground(.hidden)
         }
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .padding(.leading, CarLayout.railReserve)
         .padding(.trailing, CarLayout.edge)
-        .padding(.vertical, CarLayout.edge)
+        // Start below the now-playing and route bars that float at the top right, and leave the usual margin at the bottom.
+        .padding(.top, StripClearance.top(for: model.visibleStrips))
+        .padding(.bottom, CarLayout.edge)
         .sheet(isPresented: $showPicker) {
             PickerSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
