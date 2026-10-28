@@ -40,6 +40,51 @@ import Testing
     }
 }
 
+/// Where playback goes after the person picks a device. Spotify only treats a device as active once it has something to play,
+/// so a phone that was picked while nothing was playing is still "no active device" on the next tap. Cabin Dash then
+/// plays on the device the person picked, and nowhere else.
+@Suite struct SpotifyDeviceChoiceTests {
+    @Test func aPlayWithNoActiveDeviceRetriesOnTheChosenOne() {
+        #expect(SpotifyDevices.retryDeviceID(after: .noActiveDevice, chosenID: "phone") == "phone")
+    }
+
+    @Test func withNothingChosenThereIsNowhereToRetry() {
+        #expect(SpotifyDevices.retryDeviceID(after: .noActiveDevice, chosenID: nil) == nil)
+    }
+
+    @Test func otherFailuresAreNeverRetriedElsewhere() {
+        let others: [SpotifyFailure] = [
+            .notSignedIn, .premiumRequired, .notAllowed, .rateLimited(retryAfter: 1), .http(500), .offline,
+        ]
+        for failure in others {
+            #expect(SpotifyDevices.retryDeviceID(after: failure, chosenID: "phone") == nil)
+        }
+    }
+
+    @Test func theLineNamesTheDeviceThatIsPlaying() {
+        #expect(SpotifyDevices.lineText(playingOn: "Xiaomi TV Box", chosenName: "iPhone") == "Playing on Xiaomi TV Box")
+    }
+
+    @Test func theLineFallsBackToTheChosenDevice() {
+        #expect(SpotifyDevices.lineText(playingOn: nil, chosenName: "iPhone") == "Ready on iPhone")
+        #expect(SpotifyDevices.lineText(playingOn: "", chosenName: "iPhone") == "Ready on iPhone")
+    }
+
+    @Test func theLineOffersTheChoiceWhenThereIsNone() {
+        #expect(SpotifyDevices.lineText(playingOn: nil, chosenName: nil) == "Choose device")
+        #expect(SpotifyDevices.lineText(playingOn: "", chosenName: "") == "Choose device")
+    }
+
+    @Test func theNoticeSaysPlayingWhenSomethingMoves() {
+        #expect(SpotifyDevices.movedNotice(deviceName: "iPhone", somethingIsPlaying: true) == "Playing on iPhone")
+    }
+
+    @Test func theNoticeAdmitsNothingIsPlayingYet() {
+        #expect(SpotifyDevices.movedNotice(deviceName: "iPhone", somethingIsPlaying: false)
+                == "Ready on iPhone. Pick something to play.")
+    }
+}
+
 @Suite struct SpotifyLinkTests {
     private func addresses(_ uri: String?) -> [String] {
         SpotifyLink.openURLs(forURI: uri).map(\.absoluteString)
