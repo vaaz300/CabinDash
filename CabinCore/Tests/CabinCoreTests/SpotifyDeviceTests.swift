@@ -70,9 +70,10 @@ import Testing
         #expect(SpotifyDevices.lineText(playingOn: "", chosenName: "iPhone") == "Ready on iPhone")
     }
 
-    @Test func theLineOffersTheChoiceWhenThereIsNone() {
-        #expect(SpotifyDevices.lineText(playingOn: nil, chosenName: nil) == "Choose device")
-        #expect(SpotifyDevices.lineText(playingOn: "", chosenName: "") == "Choose device")
+    @Test func theLineNamesThisIPhoneWhenNothingElseIsPicked() {
+        // With no pick, Play goes to this iPhone, so that is what the line says.
+        #expect(SpotifyDevices.lineText(playingOn: nil, chosenName: nil) == "This iPhone")
+        #expect(SpotifyDevices.lineText(playingOn: "", chosenName: "") == "This iPhone")
     }
 
     @Test func theNoticeSaysPlayingWhenSomethingMoves() {
@@ -82,6 +83,125 @@ import Testing
     @Test func theNoticeAdmitsNothingIsPlayingYet() {
         #expect(SpotifyDevices.movedNotice(deviceName: "iPhone", somethingIsPlaying: false)
                 == "Ready on iPhone. Pick something to play.")
+    }
+}
+
+/// Where a tap on Play sends the music. With no other pick it is this iPhone, with no extra step: Spotify's own list says
+/// whether the phone is ready, and when it is not the Spotify app has to be started on it first.
+@Suite struct SpotifyPlayRouteTests {
+    private func device(_ id: String, type: String, restricted: Bool = false, active: Bool = false) -> SpotifyDevice {
+        SpotifyDevice(id: id, name: "Device \(id)", type: type, isActive: active, isRestricted: restricted)
+    }
+
+    @Test func aListThatCouldNotBeReadLeavesItToSpotify() {
+        #expect(SpotifyDevices.route(devices: nil, chosenID: nil) == .spotifyDecides)
+        #expect(SpotifyDevices.route(devices: nil, chosenID: "tv") == .spotifyDecides)
+    }
+
+    @Test func aListedPhoneIsUsedWithoutAnyPick() {
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil) == .device(phone))
+    }
+
+    @Test func aTVThatIsActiveDoesNotWinOverThePhone() {
+        // The earlier complaint: the TV box was picked for the person. Being active is not a pick.
+        let tv = device("tv", type: "TV", active: true)
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: nil) == .device(phone))
+    }
+
+    @Test func aDeviceThePersonPickedBeatsThePhone() {
+        let tv = device("tv", type: "TV")
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [phone, tv], chosenID: "tv") == .device(tv))
+    }
+
+    @Test func aPickThatIsNoLongerListedFallsBackToThePhone() {
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: "tv") == .device(phone))
+    }
+
+    @Test func aPickThatTakesNoCommandsFallsBackToThePhone() {
+        let tv = device("tv", type: "TV", restricted: true)
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: "tv") == .device(phone))
+    }
+
+    @Test func noPhoneListedMeansStartSpotifyOnThisIPhone() {
+        // Spotify lists a phone only while its app is running. Never fall back to the TV the person did not pick.
+        let tv = device("tv", type: "TV", active: true)
+        #expect(SpotifyDevices.route(devices: [tv], chosenID: nil) == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [], chosenID: nil) == .wakeThisPhone)
+    }
+
+    @Test func aRestrictedPhoneIsNotUsable() {
+        #expect(SpotifyDevices.route(devices: [device("p", type: "Smartphone", restricted: true)], chosenID: nil) == .wakeThisPhone)
+    }
+
+    @Test func ofSeveralPhonesTheFirstInSpotifysOrderIsUsed() {
+        let first = device("p1", type: "Smartphone")
+        let second = device("p2", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [second, first], chosenID: nil) == .device(second))
+    }
+
+    @Test func aPickedPhoneThatIsGoneStartsSpotifyAgain() {
+        #expect(SpotifyDevices.route(devices: [], chosenID: "p") == .wakeThisPhone)
+    }
+}
+
+/// Starting Spotify on the phone through its SDK can play one address. Whatever that cannot express is sent again, through
+/// the Web API, once Spotify has come back and the phone is listed.
+@Suite struct SpotifyWakePlanTests {
+    @Test func aPlaylistStartsFromItself() {
+        let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: nil), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p", needsResend: false))
+    }
+
+    @Test func anAlbumStartsFromItself() {
+        let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:album:a", startAtURI: nil), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:album:a", needsResend: false))
+    }
+
+    @Test func aShuffledPlaylistStartsAndIsThenShuffled() {
+        let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: nil), shuffled: true)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:playlist:p", needsResend: true))
+    }
+
+    @Test func aSongInAPlaylistStartsWithThatSongAndIsThenPutBackInItsPlaylist() {
+        let plan = SpotifyDevices.wakePlan(for: .context(uri: "spotify:playlist:p", startAtURI: "spotify:track:t"), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t", needsResend: true))
+    }
+
+    @Test func aSingleSongNeedsNothingMore() {
+        let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:t"]), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:t", needsResend: false))
+    }
+
+    @Test func aListOfSongsStartsWithTheFirstAndIsThenSentWhole() {
+        let plan = SpotifyDevices.wakePlan(for: .uris(["spotify:track:a", "spotify:track:b"]), shuffled: false)
+        #expect(plan == SpotifyDevices.WakePlan(uri: "spotify:track:a", needsResend: true))
+    }
+
+    @Test func nothingToPlayStartsSpotifyAndSendsNothing() {
+        #expect(SpotifyDevices.wakePlan(for: .uris([]), shuffled: false) == SpotifyDevices.WakePlan(uri: "", needsResend: false))
+    }
+}
+
+/// Spotify can accept a play command for a phone whose app is asleep and then never start it. Whether the music really
+/// started is read from the player: it must be on the device the command was sent to.
+@Suite struct SpotifyStartedTests {
+    private let phone = SpotifyDevice(id: "p", name: "Evan's iPhone", type: "Smartphone")
+
+    @Test func playingOnThePhoneMeansItStarted() {
+        #expect(SpotifyDevices.startedOn(phone, playingOn: "Evan's iPhone"))
+    }
+
+    @Test func nothingPlayingMeansItDidNot() {
+        #expect(!SpotifyDevices.startedOn(phone, playingOn: nil))
+    }
+
+    @Test func musicStillOnAnotherDeviceMeansItDidNot() {
+        #expect(!SpotifyDevices.startedOn(phone, playingOn: "Xiaomi TV Box"))
     }
 }
 
