@@ -119,11 +119,13 @@ private struct DeviceChip: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        let device = model.spotify.nowPlaying?.deviceName ?? ""
+        let line = SpotifyDevices.lineText(
+            playingOn: model.spotify.nowPlaying?.deviceName, chosenName: model.spotify.chosenDeviceName
+        )
         Button {
             model.library.devicePickerPresented = true
         } label: {
-            Label(device.isEmpty ? "Choose device" : "Playing on \(device)", systemImage: "speaker.wave.2.fill")
+            Label(line, systemImage: "speaker.wave.2.fill")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -132,7 +134,7 @@ private struct DeviceChip: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.97))
-        .accessibilityLabel(device.isEmpty ? "Choose device" : "Playing on \(device). Choose another device")
+        .accessibilityLabel(line == "Choose device" ? line : line + ". Choose another device")
     }
 }
 

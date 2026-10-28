@@ -42,6 +42,10 @@ final class SpotifyModel {
     private(set) var problem: SpotifyFailure?
     /// False until Spotify has answered once, so the screen does not say "nothing playing" while it is still asking.
     private(set) var hasAnswered = false
+    /// The device the person picked in the list, for this session only. Spotify does not count a device as active until it
+    /// has something to play, so after picking a phone with nothing playing the next play command is sent to this one.
+    private(set) var chosenDeviceID: String?
+    private(set) var chosenDeviceName: String?
 
     let clientID: String
 
@@ -198,12 +202,21 @@ final class SpotifyModel {
 
     /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
     ///
-    /// It plays on whichever device Spotify says is active. When none is, it does not pick one: "no device ready" stays on
-    /// screen with a way to choose, because where the sound comes out is the person's decision.
+    /// It plays on whichever device Spotify says is active. When none is, it tries the device the person picked in the list,
+    /// if they have picked one. It never chooses a device itself: with no pick, "no device ready" stays on screen with a way
+    /// to choose, because where the sound comes out is the person's decision.
     @discardableResult
     func play(_ target: SpotifyPlayTarget) async -> Bool {
         guard phase == .signedIn else { return false }
-        let failure = await attempt(SpotifyEndpoint.play(target))
+        var failure = await attempt(SpotifyEndpoint.play(target))
+        if let first = failure, let deviceID = SpotifyDevices.retryDeviceID(after: first, chosenID: chosenDeviceID) {
+            failure = await attempt(SpotifyEndpoint.play(target, deviceID: deviceID))
+            if failure != nil {
+                // The picked device is gone or will not take it. Say what the person first saw, and stop trying it.
+                forgetChosenDevice()
+                failure = first
+            }
+        }
         if let failure {
             note(failure, fromCommand: true)
         } else {
@@ -215,10 +228,18 @@ final class SpotifyModel {
         return failure == nil
     }
 
-    /// Moves playback to a device and keeps playing there. True when Spotify accepted it.
+    /// Moves playback to a device the person picked and keeps playing there. True when Spotify accepted it.
+    /// The pick is remembered even if Spotify declines the move, so the next play command still goes to that device.
     @discardableResult
-    func transfer(to deviceID: String) async -> Bool {
-        await command(SpotifyEndpoint.transfer(to: deviceID, play: true))
+    func transfer(to device: SpotifyDevice) async -> Bool {
+        chosenDeviceID = device.id
+        chosenDeviceName = device.name
+        return await command(SpotifyEndpoint.transfer(to: device.id, play: true))
+    }
+
+    private func forgetChosenDevice() {
+        chosenDeviceID = nil
+        chosenDeviceName = nil
     }
 
     /// Adds a song or episode to the end of the queue. True when Spotify accepted it.
@@ -311,6 +332,7 @@ final class SpotifyModel {
         KeychainStore.delete(account: Self.tokenAccount)
         nowPlaying = nil
         hasAnswered = false
+        forgetChosenDevice()
         phase = clientID.isEmpty ? .notConfigured : .signedOut
         updatePolling()
     }

@@ -171,6 +171,27 @@ public enum SpotifyDevices {
     public static func phonesFirst(_ devices: [SpotifyDevice]) -> [SpotifyDevice] {
         devices.filter { $0.type == "Smartphone" } + devices.filter { $0.type != "Smartphone" }
     }
+
+    /// Where to retry a play command that failed. Spotify only treats a device as active once it has something to play, so a
+    /// phone the person picked while nothing was playing still answers "no active device" on the next tap. Only that failure
+    /// is retried, and only on the device the person picked in the list. Never on one Cabin Dash chose, and never over a
+    /// device that is active (a play command with no device already goes to the active one).
+    public static func retryDeviceID(after failure: SpotifyFailure, chosenID: String?) -> String? {
+        failure == .noActiveDevice ? chosenID : nil
+    }
+
+    /// The line beside the speaker symbol: the device that is playing, else the one the person picked, else an invitation to pick.
+    public static func lineText(playingOn: String?, chosenName: String?) -> String {
+        if let name = playingOn, !name.isEmpty { return "Playing on \(name)" }
+        if let name = chosenName, !name.isEmpty { return "Ready on \(name)" }
+        return "Choose device"
+    }
+
+    /// What to say once Spotify has accepted a move to `deviceName`. With nothing playing there is nothing to move, so the
+    /// device is only ready, and saying "Playing" would be untrue.
+    public static func movedNotice(deviceName: String, somethingIsPlaying: Bool) -> String {
+        somethingIsPlaying ? "Playing on \(deviceName)" : "Ready on \(deviceName). Pick something to play."
+    }
 }
 
 /// Ways into the Spotify app.

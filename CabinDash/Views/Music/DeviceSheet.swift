@@ -78,7 +78,7 @@ struct DeviceSheet: View {
                         .contentShape(Rectangle())
                     }
                 } footer: {
-                    Text("Spotify lists a device only while its app is on. After opening Spotify, come back here and This iPhone appears in the list. Tap it to play on it.")
+                    Text("Spotify lists a device only while its app is on. After opening Spotify, come back here and This iPhone appears in the list. Tap it, then pick something to play.")
                 }
             }
 

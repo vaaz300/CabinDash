@@ -54,7 +54,7 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
 | **Spotify refused the request** | Your account is not listed under User Management for that app (step 4), or the app is over the development-mode limits. |
 | **Spotify only lets Premium accounts control playback** | The account is not Premium. |
 | **Open Spotify and start playing something** | Spotify has no active device. Play something in the Spotify app, then try again. |
-| **Spotify has no device ready to play** (with a **Devices** button) | Spotify knows no device to play on. Tap **Devices**. If this iPhone is not in the list, tap **This iPhone**, which opens Spotify; come back to Cabin Dash and the iPhone appears in the list. Tap the device you want. Cabin Dash never chooses a device for you. |
+| **Spotify has no device ready to play** (with a **Devices** button) | Spotify knows no device to play on. Tap **Devices**. If this iPhone is not in the list, tap **This iPhone**, which opens Spotify; come back to Cabin Dash and the iPhone appears in the list. Tap the device you want, then pick something to play. Cabin Dash never chooses a device for you; once you have picked one, it plays there when Spotify has no active device. |
 | **Connect Spotify again** | You signed in before Phase 2 added permissions. Tap it and press **Agree** once. |
 | A playlist says Spotify only lets Cabin Dash list tracks in playlists you own | Spotify's rule for development-mode apps. Play and Shuffle still work. |
 | The heart is dim | Cabin Dash has not heard yet whether the song is in your Liked Songs. Tapping it asks again. |

@@ -375,10 +375,11 @@ final class SpotifyLibraryModel {
         }
     }
 
-    /// Moves playback to `device` and keeps playing there.
+    /// Moves playback to `device` and keeps playing there. With nothing playing there is nothing to move: the device is then
+    /// only ready, and the next song the person picks goes to it.
     func transfer(to device: SpotifyDevice) async {
-        if await spotify.transfer(to: device.id) {
-            toast.show("Playing on \(device.name)")
+        if await spotify.transfer(to: device) {
+            toast.show(SpotifyDevices.movedNotice(deviceName: device.name, somethingIsPlaying: spotify.nowPlaying != nil))
             await reloadDevices()
         }
     }
@@ -459,7 +460,9 @@ final class SpotifyLibraryModel {
 
     /// Starts something playing and, if Spotify accepts it, shows Now Playing.
     func play(_ target: SpotifyPlayTarget) async {
-        if await spotify.play(target) { section = .nowPlaying }
+        guard await spotify.play(target) else { return }
+        section = .nowPlaying
+        await warnIfNothingStarted()
     }
 
     /// Turns shuffle on, then plays. If shuffle could not be set first (no device was ready), it is set again once playing has started.
@@ -468,5 +471,16 @@ final class SpotifyLibraryModel {
         guard await spotify.play(target) else { return }
         if !shuffled { await spotify.setShuffle(true) }
         section = .nowPlaying
+        await warnIfNothingStarted()
+    }
+
+    /// Spotify can accept a play command for a phone whose Spotify app has gone to sleep and then never start it.
+    /// If the player still shows nothing a few seconds later, say so instead of leaving the person looking at a silent screen.
+    private func warnIfNothingStarted() async {
+        let epoch = self.epoch
+        try? await Task.sleep(for: .seconds(3))
+        await spotify.refresh()
+        guard epoch == self.epoch, spotify.phase == .signedIn, spotify.hasAnswered, spotify.nowPlaying == nil else { return }
+        toast.show("Spotify took the request but nothing is playing. Open Spotify once on this iPhone, then try again.")
     }
 }

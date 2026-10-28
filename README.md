@@ -22,7 +22,7 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 309 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 317 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
