@@ -94,58 +94,94 @@ import Testing
     }
 
     @Test func aListThatCouldNotBeReadLeavesItToSpotify() {
-        #expect(SpotifyDevices.route(devices: nil, chosenID: nil) == .spotifyDecides)
-        #expect(SpotifyDevices.route(devices: nil, chosenID: "tv") == .spotifyDecides)
+        #expect(SpotifyDevices.route(devices: nil, chosenID: nil, phoneIsAwake: true) == .spotifyDecides)
+        #expect(SpotifyDevices.route(devices: nil, chosenID: "tv", phoneIsAwake: true) == .spotifyDecides)
     }
 
     @Test func aListedPhoneIsUsedWithoutAnyPick() {
         let phone = device("p", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil) == .device(phone))
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: true) == .device(phone))
     }
 
     @Test func aTVThatIsActiveDoesNotWinOverThePhone() {
         // The earlier complaint: the TV box was picked for the person. Being active is not a pick.
         let tv = device("tv", type: "TV", active: true)
         let phone = device("p", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: nil) == .device(phone))
+        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: nil, phoneIsAwake: true) == .device(phone))
     }
 
     @Test func aDeviceThePersonPickedBeatsThePhone() {
         let tv = device("tv", type: "TV")
         let phone = device("p", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [phone, tv], chosenID: "tv") == .device(tv))
+        #expect(SpotifyDevices.route(devices: [phone, tv], chosenID: "tv", phoneIsAwake: true) == .device(tv))
     }
 
     @Test func aPickThatIsNoLongerListedFallsBackToThePhone() {
         let phone = device("p", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [phone], chosenID: "tv") == .device(phone))
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: "tv", phoneIsAwake: true) == .device(phone))
     }
 
     @Test func aPickThatTakesNoCommandsFallsBackToThePhone() {
         let tv = device("tv", type: "TV", restricted: true)
         let phone = device("p", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: "tv") == .device(phone))
+        #expect(SpotifyDevices.route(devices: [tv, phone], chosenID: "tv", phoneIsAwake: true) == .device(phone))
     }
 
     @Test func noPhoneListedMeansStartSpotifyOnThisIPhone() {
         // Spotify lists a phone only while its app is running. Never fall back to the TV the person did not pick.
         let tv = device("tv", type: "TV", active: true)
-        #expect(SpotifyDevices.route(devices: [tv], chosenID: nil) == .wakeThisPhone)
-        #expect(SpotifyDevices.route(devices: [], chosenID: nil) == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [tv], chosenID: nil, phoneIsAwake: true) == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [], chosenID: nil, phoneIsAwake: true) == .wakeThisPhone)
     }
 
     @Test func aRestrictedPhoneIsNotUsable() {
-        #expect(SpotifyDevices.route(devices: [device("p", type: "Smartphone", restricted: true)], chosenID: nil) == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [device("p", type: "Smartphone", restricted: true)], chosenID: nil, phoneIsAwake: true) == .wakeThisPhone)
     }
 
     @Test func ofSeveralPhonesTheFirstInSpotifysOrderIsUsed() {
         let first = device("p1", type: "Smartphone")
         let second = device("p2", type: "Smartphone")
-        #expect(SpotifyDevices.route(devices: [second, first], chosenID: nil) == .device(second))
+        #expect(SpotifyDevices.route(devices: [second, first], chosenID: nil, phoneIsAwake: true) == .device(second))
     }
 
     @Test func aPickedPhoneThatIsGoneStartsSpotifyAgain() {
-        #expect(SpotifyDevices.route(devices: [], chosenID: "p") == .wakeThisPhone)
+        #expect(SpotifyDevices.route(devices: [], chosenID: "p", phoneIsAwake: true) == .wakeThisPhone)
+    }
+
+    // Spotify's own SDK documents that the Spotify app on an iPhone stops listening for commands soon after it leaves the
+    // screen and stops playing. A phone that is listed but idle and not connected cannot be trusted to answer the Web API.
+
+    @Test func aListedPhoneThatIsIdleAndNotConnectedNeedsSpotifyStarted() {
+        let phone = device("p", type: "Smartphone", active: false)
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: false) == .wakeThisPhone)
+    }
+
+    @Test func aPhoneThatIsPlayingIsUsedEvenWhenNotConnected() {
+        let phone = device("p", type: "Smartphone", active: true)
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: false) == .device(phone))
+    }
+
+    @Test func anIdlePhoneIsUsedWhenTheConnectionToSpotifyIsUp() {
+        let phone = device("p", type: "Smartphone", active: false)
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: nil, phoneIsAwake: true) == .device(phone))
+    }
+
+    @Test func aPickedPhoneThatIsIdleAndNotConnectedNeedsSpotifyStarted() {
+        let phone = device("p", type: "Smartphone", active: false)
+        #expect(SpotifyDevices.route(devices: [phone], chosenID: "p", phoneIsAwake: false) == .wakeThisPhone)
+    }
+
+    @Test func aPickedTVIsNotAffectedByWhetherThePhoneIsAwake() {
+        let tv = device("tv", type: "TV", active: false)
+        let phone = device("p", type: "Smartphone")
+        #expect(SpotifyDevices.route(devices: [phone, tv], chosenID: "tv", phoneIsAwake: false) == .device(tv))
+    }
+
+    @Test func anIdlePhoneBehindAnActiveOneIsSkipped() {
+        // Two phones: only the one that answers is worth sending to.
+        let idle = device("p1", type: "Smartphone", active: false)
+        let live = device("p2", type: "Smartphone", active: true)
+        #expect(SpotifyDevices.route(devices: [idle, live], chosenID: nil, phoneIsAwake: false) == .device(live))
     }
 }
 
