@@ -22,7 +22,7 @@ This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 308 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 309 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
@@ -170,7 +170,7 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 **Map.** The map and the directions come from Apple Maps (MapKit), because iOS cannot put Google Maps inside another app. Turn-by-turn here is simple: it shows the next instruction and counts down the straight-line distance to it, and it moves on when you pass it. It does not speak, does not reroute by itself (there is a Reroute button), and stops updating when the screen is off or the app is in the background. For real navigation use **Open in Google Maps**, which starts the trip in the Google Maps app (set "Directions with" to Google Maps in Settings).
 
-**Music.** See `docs/SPOTIFY-SETUP.md`. The section bar along the top switches between Now Playing, Playlists, Liked, Search and Queue; the device chip beside it opens the list of Spotify devices. Spotify decides which device makes the sound: with none ready, playback cannot start, and Cabin Dash only starts one by itself when exactly one usable device exists. Typing in Search is locked while the car is faster than about 8 km/h and stays locked until it has been below 4 km/h for 10 seconds; Passenger mode (Settings > Driving) turns the lock off. Likes go straight to Spotify and nothing is saved on the phone.
+**Music.** See `docs/SPOTIFY-SETUP.md`. The section bar along the top switches between Now Playing, Playlists, Liked, Search and Queue; the device chip beside it opens the list of Spotify devices. Spotify decides which device makes the sound: with none ready, playback cannot start, and Cabin Dash never picks one for you. The device list has a **This iPhone** row that opens Spotify so the phone can show up in it. Typing in Search is locked while the car is faster than about 8 km/h and stays locked until it has been below 4 km/h for 10 seconds; Passenger mode (Settings > Driving) turns the lock off. Likes go straight to Spotify and nothing is saved on the phone.
 
 **Speed and trip.** From Core Location, only while the app is on screen. Standing still, poor readings and sudden jumps are ignored. The screen stays on while the app is open (switch off in Settings) and always while a route is being followed, so keep the phone plugged in. Turning off "Precise Location" for the app currently breaks speed and distance without a message; see `docs/IOS-LIMITS.md`.
 

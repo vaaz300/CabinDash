@@ -198,15 +198,12 @@ final class SpotifyModel {
 
     /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
     ///
-    /// When Spotify says no device is active, this looks at the devices it knows. With exactly one that takes commands, it
-    /// starts playing there. With several it does not guess: it leaves "no device ready" showing so the person can choose.
+    /// It plays on whichever device Spotify says is active. When none is, it does not pick one: "no device ready" stays on
+    /// screen with a way to choose, because where the sound comes out is the person's decision.
     @discardableResult
     func play(_ target: SpotifyPlayTarget) async -> Bool {
         guard phase == .signedIn else { return false }
-        var failure = await attempt(SpotifyEndpoint.play(target))
-        if failure == .noActiveDevice {
-            failure = await playOnTheOnlyDevice(target)
-        }
+        let failure = await attempt(SpotifyEndpoint.play(target))
         if let failure {
             note(failure, fromCommand: true)
         } else {
@@ -238,13 +235,6 @@ final class SpotifyModel {
         } catch {
             return (error as? SpotifyFailure) ?? .offline
         }
-    }
-
-    private func playOnTheOnlyDevice(_ target: SpotifyPlayTarget) async -> SpotifyFailure? {
-        guard let reply = try? await perform(SpotifyEndpoint.devices()), reply.isSuccess,
-              let devices = SpotifyLibrary.parseDevices(reply.data),
-              let device = SpotifyDevices.autoTarget(devices) else { return .noActiveDevice }
-        return await attempt(SpotifyEndpoint.play(target, deviceID: device.id))
     }
 
     /// Sends one command, then looks at the player again. True when Spotify accepted the command.

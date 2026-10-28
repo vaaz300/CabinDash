@@ -160,11 +160,16 @@ public struct SpotifyPage<Item: Equatable & Sendable>: Equatable, Sendable {
 // MARK: - Devices and links
 
 public enum SpotifyDevices {
-    /// The device to start playing on when Spotify says none is active. Only when exactly one device can take commands:
-    /// with several, which one the person wants is theirs to say, so this never guesses.
-    public static func autoTarget(_ devices: [SpotifyDevice]) -> SpotifyDevice? {
-        let usable = devices.filter { !$0.isRestricted }
-        return usable.count == 1 ? usable[0] : nil
+    /// True when Spotify lists a phone that takes commands. Spotify lists a phone only while its Spotify app is running,
+    /// so a list without one means the Spotify app on this iPhone has not been opened lately.
+    public static func hasPhone(in devices: [SpotifyDevice]) -> Bool {
+        devices.contains { $0.type == "Smartphone" && !$0.isRestricted }
+    }
+
+    /// The list as the picker shows it: phones first, then everything else, each group in Spotify's order.
+    /// Cabin Dash never picks a device itself. Which one plays is always the person's choice.
+    public static func phonesFirst(_ devices: [SpotifyDevice]) -> [SpotifyDevice] {
+        devices.filter { $0.type == "Smartphone" } + devices.filter { $0.type != "Smartphone" }
     }
 }
 
