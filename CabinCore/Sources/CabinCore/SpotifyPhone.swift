@@ -176,11 +176,19 @@ public enum SpotifyPhone {
         /// What Spotify's SDK is asked to play when the Spotify app has to be started: the tapped song itself, so the right
         /// music starts at once.
         public var handOverURI: String
+        /// Other addresses of the same list, tried in order when the Spotify app does not accept the one in `start`.
+        /// Liked Songs has two.
+        public var otherContexts: [String]
+        /// The songs, from the tapped one on, that Cabin Dash plays one after another itself when the Spotify app accepts
+        /// none of the list's addresses (see `SongRun`). Empty for a playlist or album, which the Spotify app always takes.
+        public var songs: [String]
 
-        public init(start: Start, shuffle: Bool?, handOverURI: String) {
+        public init(start: Start, shuffle: Bool?, handOverURI: String, otherContexts: [String] = [], songs: [String] = []) {
             self.start = start
             self.shuffle = shuffle
             self.handOverURI = handOverURI
+            self.otherContexts = otherContexts
+            self.songs = songs
         }
 
         /// What is still to be done once the started Spotify app is connected: playing the song inside its playlist, album
@@ -192,8 +200,8 @@ public enum SpotifyPhone {
     }
 
     /// The request for a tap on Play. `index` is the tapped song's place in the list it was tapped in, when known;
-    /// `likedCollection` is the address of the person's Liked Songs, used for a list tapped in Liked Songs.
-    /// Nil when there is nothing to play.
+    /// `likedCollection` is the person's own Liked Songs address (with their account id), used for a list tapped in Liked
+    /// Songs together with Liked Songs' general address. Nil when there is nothing to play.
     public static func plan(for target: SpotifyPlayTarget, shuffled: Bool, index: Int?, likedCollection: String?) -> PlayPlan? {
         switch target {
         case .context(let uri, let startAt):
@@ -206,15 +214,106 @@ public enum SpotifyPhone {
         case .uris(let uris):
             guard let first = uris.first else { return nil }
             let shuffle: Bool? = shuffled ? true : nil
-            if uris.count > 1, let likedCollection, let index {
-                return PlayPlan(start: .item(context: likedCollection, index: index, song: first), shuffle: shuffle, handOverURI: first)
-            }
-            return PlayPlan(start: .uri(first), shuffle: shuffle, handOverURI: first)
+            guard uris.count > 1 else { return PlayPlan(start: .uri(first), shuffle: shuffle, handOverURI: first) }
+            guard let index else { return PlayPlan(start: .uri(first), shuffle: shuffle, handOverURI: first, songs: uris) }
+            let addresses = [likedCollection, likedSongsAddress].compactMap { $0 }
+            return PlayPlan(
+                start: .item(context: addresses[0], index: index, song: first), shuffle: shuffle, handOverURI: first,
+                otherContexts: Array(addresses.dropFirst()), songs: uris
+            )
         }
     }
+
+    /// Liked Songs' general address, which the Spotify app opens as the signed-in person's Liked Songs.
+    public static let likedSongsAddress = "spotify:collection:tracks"
 
     /// The address of the person's Liked Songs, which the Spotify app plays like a playlist.
     public static func likedCollectionURI(userID: String) -> String {
         "spotify:user:\(userID):collection"
+    }
+}
+
+/// Songs Cabin Dash plays one after another itself, for a list the Spotify app will not play as a whole (Liked Songs, when
+/// neither of its addresses is accepted). Cabin Dash watches the Spotify app: when it moves past the run's song to one of
+/// its own picks (the song ended, or was skipped from the lock screen or the car), the run's next song is played. It works
+/// only while Cabin Dash is on screen to see that happen.
+public struct SongRun: Equatable, Sendable {
+    /// The songs in the order they will play.
+    public private(set) var songs: [String]
+    /// Where playback is in `songs`.
+    public private(set) var index: Int
+    /// Repeat all: after the last song comes the first.
+    public var repeatsAll = false
+    /// The order before shuffling.
+    private var inOrder: [String]
+
+    public init?(songs: [String], start: Int = 0) {
+        guard songs.indices.contains(start) else { return nil }
+        self.songs = songs
+        self.index = start
+        self.inOrder = songs
+    }
+
+    public var current: String { songs[index] }
+
+    public enum Step: Equatable, Sendable {
+        /// Nothing to do.
+        case keep
+        /// Play this song.
+        case play(String)
+        /// The run is over; Spotify carries on with its own picks.
+        case stop
+    }
+
+    /// The Spotify app, watched live, moved to `uri`. Inside the run that is simply where playback is now; anything else
+    /// means the run's song is over, and its next song should play.
+    public mutating func spotifyMoved(to uri: String) -> Step {
+        if let found = songs.firstIndex(of: uri) {
+            index = found
+            return .keep
+        }
+        return advance().map { .play($0) } ?? .stop
+    }
+
+    /// The next song (the Next button, or the end of a song). Nil after the last one, unless repeating all.
+    public mutating func advance() -> String? {
+        if index + 1 < songs.count {
+            index += 1
+            return songs[index]
+        }
+        guard repeatsAll else { return nil }
+        index = 0
+        return songs[0]
+    }
+
+    public enum Back: Equatable, Sendable {
+        case restart
+        case play(String)
+    }
+
+    /// The Previous button: the song starts again once it has played for more than three seconds, as in Spotify;
+    /// earlier than that it goes to the song before. The first song starts again.
+    public mutating func back(position: TimeInterval) -> Back {
+        guard position <= 3, index > 0 else { return .restart }
+        index -= 1
+        return .play(songs[index])
+    }
+
+    /// Shuffles the songs that have not played yet, or puts the list back in its order. The song playing stays playing.
+    public mutating func shuffle(_ on: Bool) {
+        var generator = SystemRandomNumberGenerator()
+        shuffle(on, using: &generator)
+    }
+
+    public mutating func shuffle<Generator: RandomNumberGenerator>(_ on: Bool, using generator: inout Generator) {
+        let playing = current
+        if on {
+            let played = songs[...index]
+            let rest = songs[(index + 1)...].shuffled(using: &generator)
+            songs = Array(played) + rest
+        } else {
+            songs = inOrder
+            index = songs.firstIndex(of: playing) ?? 0
+        }
     }
 }

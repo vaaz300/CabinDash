@@ -69,6 +69,18 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     /// The album picture of the song in `state`, once looked up.
     private(set) var art: TrackArt?
 
+    /// What Now Playing shows: the Spotify app's word, adjusted while Cabin Dash plays a list itself (`run`): skipping is
+    /// possible, and repeat all is Cabin Dash's own (the Spotify app is never told to repeat a single song's "list").
+    var shownState: RemotePlayback? {
+        guard var shown = state else { return nil }
+        if let run {
+            shown.canSkipNext = true
+            shown.canSkipPrevious = true
+            if run.repeatsAll, shown.repeatMode == .off { shown.repeatMode = .context }
+        }
+        return shown
+    }
+
     private var remote: SPTAppRemote?
     private var clientID = ""
     private var token: String?
@@ -81,6 +93,13 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     private var afterReturn: AfterReturn?
     private var lookingUpArtFor: String?
     private var startingToken = 0
+    /// A list Cabin Dash is playing itself because the Spotify app would not play it as a whole (see `SongRun`).
+    private var run: SongRun?
+    /// True once the Spotify app has spoken on the current connection, so a change of song is one seen as it happened.
+    private var watchingLive = false
+    /// True when the Spotify app is known to be asleep (it ended the connection, or would not take one). A press then opens
+    /// Spotify at once instead of first trying to reconnect.
+    private var asleep = false
 
     private static let tokenAccount = "spotify-app-remote-token"
     /// Spotify's tokens for its app last an hour. A saved one is trusted for a little less.
@@ -111,6 +130,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
 
     /// Plays what was tapped: straight away when connected, otherwise by starting Spotify with the tapped song.
     func play(_ plan: SpotifyPhone.PlayPlan) {
+        run = nil
         if isConnected {
             Task { await self.run(plan, afterHandOver: false) }
         } else {
@@ -120,6 +140,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
 
     /// The "This iPhone" row: plays here. Connected, the Spotify app resumes; otherwise Spotify is started with its last song.
     func startHere() {
+        run = nil
         if isConnected {
             send(.resume)
         } else {
@@ -130,38 +151,58 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     private func run(_ plan: SpotifyPhone.PlayPlan, afterHandOver: Bool) async {
         showStarting(afterHandOver ? "Finishing in Spotify\u{2026}" : "Starting playback\u{2026}")
         if let shuffle = plan.shuffle { send(.shuffle(shuffle)) }
-        if let start = afterHandOver ? plan.afterHandOver : plan.start {
-            await begin(start)
+        if afterHandOver {
+            if let start = plan.afterHandOver {
+                await begin(start, plan: plan)
+            } else {
+                startRun(plan.songs)
+            }
+        } else {
+            await begin(plan.start, plan: plan)
         }
         await confirmPlaying()
     }
 
-    private func begin(_ start: SpotifyPhone.PlayPlan.Start) async {
+    private func begin(_ start: SpotifyPhone.PlayPlan.Start, plan: SpotifyPhone.PlayPlan) async {
         switch start {
         case .uri(let uri):
             _ = await playAddress(uri)
+            startRun(plan.songs)
         case .item(let context, let index, let song):
-            await playInside(context, index: index, song: song)
+            await playInside([context] + plan.otherContexts, index: index, song: song, songs: plan.songs)
         case .lookUp(let context, let song):
-            await playInside(context, index: nil, song: song)
+            await playInside([context], index: nil, song: song, songs: [])
         }
     }
 
-    /// Plays a playlist, album or Liked Songs from the tapped song. The song's place is checked: if Spotify's list is in a
-    /// different order from Cabin Dash's (another sort, a removed song), the tapped song is played on its own instead.
-    private func playInside(_ context: String, index: Int?, song: String) async {
-        let asked = Date()
-        if await playItem(context, index: index, song: song) {
-            if await waitForSong(song, after: asked, seconds: 4) { return }
-            log("Spotify did not start on the tapped song; playing it on its own")
-        } else if state?.uri == song {
-            // Typically after Spotify was started with the song: it is already playing, on its own.
-            log("Leaving the tapped song playing on its own")
-            return
-        } else {
-            log("Playing the tapped song on its own")
+    /// Plays a playlist, album or Liked Songs from the tapped song, trying each of the list's addresses in turn. The song's
+    /// place is checked: if Spotify starts another song (its list in another order, a removed song), no other address is
+    /// tried. When no address works, Cabin Dash plays `songs` itself if it has them, otherwise the tapped song on its own.
+    private func playInside(_ contexts: [String], index: Int?, song: String, songs: [String]) async {
+        for context in contexts {
+            let asked = Date()
+            guard await playItem(context, index: index, song: song) else { continue }
+            if await waitForSong(song, after: asked, seconds: 4) {
+                log("Playing \(context) from the tapped song")
+                return
+            }
+            log("Spotify did not start \(context) on the tapped song")
+            break
         }
-        _ = await playAddress(song)
+        if state?.uri == song {
+            // Typically after Spotify was started with the song: it is already playing.
+            log("Leaving the tapped song playing")
+        } else {
+            _ = await playAddress(song)
+        }
+        startRun(songs)
+    }
+
+    /// Cabin Dash takes over playing the rest of `songs` (the first is the one playing). Nothing happens for an empty list.
+    private func startRun(_ songs: [String]) {
+        guard let started = SongRun(songs: songs) else { return }
+        run = started
+        log("Cabin Dash plays the rest of the list itself (\(songs.count) songs) while it is on screen")
     }
 
     /// Asks the Spotify app to play an address. True when it accepted.
@@ -261,17 +302,70 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     /// pause has nothing to do.
     func control(_ control: Control) {
         if isConnected {
-            send(control)
+            if !steerRun(control) { send(control) }
             return
         }
         Task { await self.controlWithoutConnection(control) }
     }
 
+    /// While Cabin Dash plays a list itself, Next and Previous move through that list, and shuffle and repeat all apply to
+    /// it. True when the control was dealt with here; false when it should go to the Spotify app as usual.
+    private func steerRun(_ control: Control) -> Bool {
+        guard var current = run else { return false }
+        switch control {
+        case .next:
+            guard let song = current.advance() else {
+                run = nil
+                return false
+            }
+            run = current
+            log("Next song of the list")
+            Task { _ = await self.playAddress(song) }
+            return true
+        case .previous:
+            switch current.back(position: currentPosition) {
+            case .restart:
+                run = current
+                send(.seek(0))
+            case .play(let song):
+                run = current
+                log("Previous song of the list")
+                Task { _ = await self.playAddress(song) }
+            }
+            return true
+        case .shuffle(let on):
+            current.shuffle(on)
+            run = current
+            return false
+        case .repeatMode(let mode):
+            current.repeatsAll = mode == .context
+            run = current
+            // The Spotify app plays one song of the list at a time; told to repeat "the list", it would repeat that song.
+            if mode == .context {
+                send(.repeatMode(.off))
+                onChange?()
+                return true
+            }
+            return false
+        case .resume, .pause, .seek, .enqueue:
+            return false
+        }
+    }
+
+    /// Where the song is now, counting on from the Spotify app's last word while it plays.
+    private var currentPosition: TimeInterval {
+        guard let state else { return 0 }
+        return state.position + (state.isPaused ? 0 : Date().timeIntervalSince(stateObservedAt))
+    }
+
     private func controlWithoutConnection(_ control: Control) async {
-        connect(expecting: true)
-        if await waitUntilConnected(seconds: 2) {
-            send(control)
-            return
+        // Known to be asleep: trying to reconnect first would only add a wait before Spotify has to be opened anyway.
+        if !asleep {
+            connect(expecting: true)
+            if await waitUntilConnected(seconds: 1.5) {
+                self.control(control)
+                return
+            }
         }
         switch control {
         case .pause:
@@ -417,7 +511,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
         case .plan(let plan):
             await run(plan, afterHandOver: true)
         case .control(let control):
-            send(control)
+            self.control(control)
             endStarting()
         case nil:
             endStarting()
@@ -450,6 +544,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
             try? await Task.sleep(for: .seconds(8))
             guard let self, self.connectAttempt == attempt, self.connecting, !self.isConnected else { return }
             self.connecting = false
+            self.asleep = true
             if self.expectingConnection { self.log("The Spotify app did not answer the connection") }
         }
     }
@@ -464,6 +559,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     }
 
     private func setConnected(_ value: Bool) {
+        if value { asleep = false } else { watchingLive = false }
         guard isConnected != value else { return }
         isConnected = value
         onChange?()
@@ -508,6 +604,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.connecting = false
+            self.asleep = true
             if self.expectingConnection {
                 self.log("Could not connect to the Spotify app: \(problem)")
                 self.expectingConnection = false
@@ -521,7 +618,11 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
         Task { @MainActor [weak self] in
             guard let self else { return }
             self.connecting = false
-            if let problem { self.log("The Spotify app ended the connection: \(problem)") }
+            if let problem {
+                // The Spotify app ended it (after a pause it goes to sleep), as opposed to Cabin Dash leaving the screen.
+                self.asleep = true
+                self.log("The Spotify app ended the connection: \(problem)")
+            }
             self.setConnected(false)
         }
     }
@@ -558,10 +659,49 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
         if newSong || snapshot.isPaused != state?.isPaused {
             log("Spotify app: \(snapshot.isPaused ? "paused" : "playing") \(snapshot.title.isEmpty ? snapshot.uri : snapshot.title)")
         }
+        let firstWordOnThisConnection = !watchingLive
+        watchingLive = true
         state = snapshot
         stateObservedAt = Date()
+        if !snapshot.uri.isEmpty {
+            if firstWordOnThisConnection {
+                checkRunAfterReconnecting(to: snapshot.uri)
+            } else if newSong {
+                followRun(to: snapshot.uri)
+            }
+        }
         onChange?()
         if newSong { fetchArt(for: snapshot.uri) }
+    }
+
+    /// On reconnecting, the Spotify app may have moved on while Cabin Dash was away. Its song then is not a change Cabin Dash
+    /// saw happen, so it is not acted on: the list goes on if the song is one of its own, and ends otherwise.
+    private func checkRunAfterReconnecting(to uri: String) {
+        guard var current = run else { return }
+        if current.songs.contains(uri) {
+            _ = current.spotifyMoved(to: uri)
+            run = current
+        } else {
+            run = nil
+            log("Spotify moved on while Cabin Dash was away; Cabin Dash stops playing its list")
+        }
+    }
+
+    /// Keeps a list Cabin Dash plays itself going: when the Spotify app, watched live, moves from the list's song to one of
+    /// its own picks, the list's next song is played.
+    private func followRun(to uri: String) {
+        guard var current = run else { return }
+        switch current.spotifyMoved(to: uri) {
+        case .keep:
+            run = current
+        case .play(let next):
+            run = current
+            log("The list's song ended; playing its next song")
+            Task { _ = await self.playAddress(next) }
+        case .stop:
+            run = nil
+            log("End of the list")
+        }
     }
 
     private func fetchArt(for uri: String) {
@@ -615,6 +755,7 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     func forget() {
         state = nil
         art = nil
+        run = nil
         afterReturn = nil
         endStarting()
         onChange?()

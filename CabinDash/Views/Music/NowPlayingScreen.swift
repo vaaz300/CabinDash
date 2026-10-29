@@ -61,6 +61,15 @@ private struct PlayerView: View {
                     Controls(spotify: spotify, track: playing)
                         .padding(.top, 6)
 
+                    if spotify.phoneAsleep {
+                        // iOS puts Spotify to sleep soon after it stops playing; only opening it wakes it.
+                        Label("Play opens Spotify for a moment to wake it", systemImage: "moon.zzz")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 4)
+                    }
+
                     Spacer(minLength: 0)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

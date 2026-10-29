@@ -50,6 +50,9 @@ final class SpotifyModel {
 
     /// What Now Playing says while a tap on Play is being carried out on this iPhone. Nil when nothing is under way.
     private(set) var starting: String?
+    /// True when the song on screen is the last one the Spotify app named and the connection to it has ended: Play then has
+    /// to open Spotify for a moment to wake it.
+    private(set) var phoneAsleep = false
 
     let clientID: String
     /// Plays, shows and steers music on this iPhone through the Spotify app.
@@ -192,18 +195,21 @@ final class SpotifyModel {
     /// Picks the source with `SpotifyPhone.source` and shows its song.
     private func showWhatIsPlaying() {
         source = SpotifyPhone.source(
-            otherDeviceChosen: otherDeviceChosen, connected: phone.isConnected, app: phone.state, web: webPlaying, phoneName: phoneName
+            otherDeviceChosen: otherDeviceChosen, connected: phone.isConnected, app: phone.shownState, web: webPlaying, phoneName: phoneName
         )
         switch source {
         case .phone(let app, let live):
             nowPlaying = SpotifyPhone.nowPlaying(from: app, live: live, deviceName: phoneName ?? "This iPhone", art: phone.art)
             observedAt = phone.stateObservedAt
             hasAnswered = true
+            phoneAsleep = !live
         case .phoneByWeb(let web), .otherDevice(let web):
             nowPlaying = web
             observedAt = webObservedAt
+            phoneAsleep = false
         case .nothing:
             nowPlaying = nil
+            phoneAsleep = false
         }
     }
 
