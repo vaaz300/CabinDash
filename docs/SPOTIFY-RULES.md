@@ -23,7 +23,7 @@ These four are from Spotify's design guidelines as read on 27 Oct 2026.
 These are how the app behaves, not rules quoted from Spotify.
 
 * It never plays audio. It steers the Spotify app, which plays the sound.
-* It uses Spotify's iOS SDK (version 5.0.1, from Spotify's own repository) for one call, `authorizeAndPlayURI`, which starts the Spotify app and returns. The SDK's connection (App Remote), its player state and its content calls are not used. Spotify's SDK terms limit such apps to non-commercial use and forbid changing, syncing or broadcasting the audio; Cabin Dash does none of those.
+* It uses Spotify's iOS SDK (version 5.0.1, from Spotify's own repository) to play and steer music on this iPhone: `authorizeAndPlayURI` to start the Spotify app and return, the App Remote connection for play, pause, skip, seek, shuffle, repeat and the queue, its player state for Now Playing, and its content calls to play a playlist, album or Liked Songs from a given song. Album pictures come from the Web API's catalogue. Spotify's SDK terms limit such apps to non-commercial use and forbid changing, syncing or broadcasting the audio; Cabin Dash does none of those.
 * Playlists, Liked Songs, the queue and devices are read for the person who signed in, shown to them, and sent nowhere else.
 * Sign-in tokens live in the iPhone's Keychain. The Client ID is public by design (PKCE sign-in) and no Client Secret is used or stored.
 * Search asks for 10 results of each kind, the current development-mode maximum. Songs of a playlist are listed only for playlists you own or collaborate on, as Spotify now requires. The app pauses its requests when Spotify answers "too many requests".

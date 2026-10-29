@@ -13,7 +13,7 @@ struct NowPlayingPane: View {
             if spotify.phase == .signedIn, let playing = spotify.nowPlaying {
                 PlayerView(spotify: spotify, playing: playing)
             } else {
-                StatePanel(spotify: spotify, starting: model.library.starting)
+                StatePanel(spotify: spotify, starting: spotify.starting)
             }
         }
         // The heart needs to know whether this song is liked, which is asked once per song while this pane is showing.
@@ -334,7 +334,7 @@ struct StatePanel: View {
                     message(
                         symbol: "pause.circle",
                         title: "Nothing is playing",
-                        detail: "Pick something from Playlists, Liked or Search. Spotify plays the sound, so keep the Spotify app running on this iPhone."
+                        detail: "Pick something from Playlists, Liked or Search. The Spotify app on this iPhone plays it, and Cabin Dash opens it briefly when it is asleep."
                     )
                 } else {
                     ProgressView()

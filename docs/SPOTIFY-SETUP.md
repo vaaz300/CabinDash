@@ -33,7 +33,7 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
    * App name: `Cabin Dash` (anything).
    * Description: anything.
    * **Redirect URI:** type exactly `cabindash://spotify-callback` and press **Add**. It must match to the letter, or Spotify refuses to sign you in. (Spotify's own page lists only the name, description and terms on the create dialog and puts redirect addresses under **Edit Settings**. If your create form has no Redirect URI field, create the app first and add it in the app's **Settings**.)
-   * If it asks which API/SDKs you plan to use: tick **Web API** and **iOS**. Cabin Dash signs in and does all its work through the Web API. It uses Spotify's iOS SDK for one thing only: Play when the phone is not listed, and the **This iPhone** button in the device list, which start the Spotify app and bring you straight back (see "Start Spotify on this iPhone" below). That needs **iOS** ticked and your app's **Bundle ID** entered in the dashboard. Spotify's pages don't describe this form in full, so if yours shows something that doesn't match, tell me what it says rather than guessing.
+   * If it asks which API/SDKs you plan to use: tick **Web API** and **iOS**. Cabin Dash signs in, browses and searches through the Web API. Music on this iPhone is played and steered through Spotify's iOS SDK, which also starts the Spotify app when it is asleep and brings you straight back (see "Start Spotify on this iPhone" below). That needs **iOS** ticked and your app's **Bundle ID** entered in the dashboard. Spotify's pages don't describe this form in full, so if yours shows something that doesn't match, tell me what it says rather than guessing.
    * Accept the terms and **Save**.
 3. Open the app's **Settings**. Copy the **Client ID**. (It is a public identifier, not a password. You do not need the Client Secret and should not use it.)
 4. If the app has a **User Management** tab, add yourself: your name and the email address of your Spotify account. In development mode Spotify limits who can sign in, and its pages do not say whether the owner is added automatically. Adding yourself does no harm.
@@ -43,11 +43,11 @@ Cabin Dash does not ask to change your playlists or to follow anyone.
    * (It goes under **Variables**, not Secrets. The workflow reads it as a variable, and the Client ID is not secret.)
 6. Build a new copy: **Actions > Unsigned IPA (manual) > Run workflow.** Download the artifact, and install it with iLoader as before. The Client ID is baked into that build; a build made before you set the variable has Spotify switched off.
 7. On the iPhone: open Cabin Dash, tap **Music** in the dock (the music-note button), then **Connect Spotify.** Spotify's own page opens in a sheet. Sign in and press **Agree.** You land back in Cabin Dash.
-8. Start a song in the Spotify app. Go back to Cabin Dash. Music shows it, the Home screen's music widget shows it, and the buttons work. From then on you can start things from Cabin Dash itself (**Playlists**, **Liked**, **Search**). Keep the Spotify app running in the background on the iPhone: it is what makes the sound.
+8. Start a song in the Spotify app. Go back to Cabin Dash. Music shows it, the Home screen's music widget shows it, and the buttons work. From then on you can start things from Cabin Dash itself (**Playlists**, **Liked**, **Search**). The Spotify app on the iPhone makes the sound; when it is asleep, Cabin Dash opens it for a moment and comes back.
 
 ## Start Spotify on this iPhone (so you do not switch apps by hand)
 
-Spotify lists this iPhone as a place to play only while the Spotify app is running, and only the Spotify app can start itself. You do not have to do anything for this: tapping Play on a playlist or song plays on this iPhone, and when Spotify is not running on it, Cabin Dash opens Spotify with what you tapped and Spotify opens Cabin Dash again by itself. The device line shows **This iPhone** until you pick something else in the list. Music > the device line > **This iPhone** does the same hop with your last song, and goes back to the phone after you picked another device. It uses Spotify's iOS SDK for that step.
+Cabin Dash plays music on this iPhone through the Spotify app, with Spotify's iOS SDK. You do not have to do anything for this: tapping Play on a playlist or song plays on this iPhone. When the Spotify app is asleep, Cabin Dash opens it for a moment with what you tapped and Spotify opens Cabin Dash again by itself; after that Cabin Dash stays connected to it while it is on screen. The device line shows **This iPhone** until you pick something else in the list. Music > the device line > **This iPhone** does the same with your last song, and goes back to the phone after you picked another device.
 
 **One-time dashboard setup (your PC, about two minutes):**
 
@@ -55,7 +55,7 @@ Spotify lists this iPhone as a place to play only while the Spotify app is runni
 2. In the Spotify dashboard, open your app > **Settings** (Edit Settings). Under **Bundle IDs** add that exact text. Make sure **iOS** is ticked in the list of APIs/SDKs. The **Redirect URI** stays `cabindash://spotify-callback`; do not add another.
 3. Save. On the iPhone: tap Play on a playlist (or Music > the device line > **This iPhone**). The first time, Spotify shows a page asking you to allow Cabin Dash to control it. Tap **Agree**. You land back in Cabin Dash and music from your last session is playing on the phone.
 
-After the first hop Cabin Dash also connects to the Spotify app, which Spotify's documentation says lets it skip the Agree page for the next 24 hours. If the Agree page keeps appearing every time, tell me.
+Spotify's documentation says the Agree page is skipped for 24 hours once Cabin Dash has connected. If it keeps appearing every time, the connection is not being made, and Settings > **Spotify log** says why.
 
 **If something goes wrong:** Settings > **Spotify log** lists the steps Cabin Dash took, newest first (no passwords or tokens). Tap **Copy log**, or take a screenshot, and send it to me.
 
@@ -73,7 +73,10 @@ If Spotify refuses, Cabin Dash shows what Spotify said at the bottom of the scre
 | **Spotify has no device ready to play** (with a **Devices** button) | Spotify's device list could not be read when you tapped Play, and it knows no active device. Tap **Devices** and then **This iPhone**, or pick a device. Normally Play chooses this iPhone itself. |
 | **Spotify declined: ...** after tapping **This iPhone** | Spotify refused the hand-over. Check the Bundle ID in the dashboard against Settings > About, and that **iOS** is ticked. |
 | **The Spotify app isn't installed on this iPhone** | There is no Spotify app to start. Install it from the App Store and sign in. |
-| **Spotify took the request but nothing is playing** (or "...nothing is playing on <device>") | The device accepted the command and did not start. For the phone, Cabin Dash asks the Spotify app directly when it is connected to it and otherwise starts Spotify at once with what you tapped; the web service is not used to start music on the phone. Now Playing says what is happening. If nothing plays after that, it says so. For another device you picked, check that it is on, or tap **This iPhone** to go back to the phone. |
+| **Spotify didn't start playing. Try again.** | The Spotify app on this iPhone accepted the request and did not say it was playing within six seconds. The Spotify log shows the steps. |
+| **Couldn't connect to Spotify** | Spotify came back to Cabin Dash, but the connection to it was not made. What you tapped may still be playing. The Spotify log says what Spotify answered. |
+| **Spotify is asleep. Press play first.** | Shuffle, repeat, seek or queue were pressed after Spotify ended the connection (it does so about 30 seconds after a pause). Play opens Spotify for a moment and connects again. |
+| **Spotify took the request but nothing is playing on <device>** | A TV or speaker you picked accepted the command and did not start. Check that it is on, or tap **This iPhone** to go back to the phone. |
 | **Connect Spotify again** | You signed in before Phase 2 added permissions. Tap it and press **Agree** once. |
 | A playlist says Spotify only lets Cabin Dash list tracks in playlists you own | Spotify's rule for development-mode apps. Play and Shuffle still work. |
 | The heart is dim | Cabin Dash has not heard yet whether the song is in your Liked Songs. Tapping it asks again. |
@@ -84,6 +87,6 @@ To disconnect: **Settings > Spotify > Disconnect.** To take back access complete
 
 ## What Cabin Dash stores and sends
 
-* The sign-in tokens go in the iPhone's Keychain, on that phone only. They are never written to the repository, the logs or any server of mine.
+* The sign-in tokens go in the iPhone's Keychain, on that phone only, and so does the token Spotify gives for the connection to its app (kept for up to an hour). They are never written to the repository, the logs or any server of mine.
 * While the app is on screen it asks Spotify what is playing every few seconds (faster on the Music screen). Opening Playlists, Liked, Search, Queue or Devices asks Spotify for those lists, and what you type in Search is sent to Spotify to find results. It sends nothing else about you anywhere. Likes live in Spotify, not on the phone. Spotify's logo is not bundled yet: see `docs/SPOTIFY-RULES.md` for how to add it.
 * The Client ID is in the app you build, where anyone who can read the app file could find it. That is normal for this kind of sign-in (it is designed for apps that cannot keep a secret), and it is why no Client Secret is used.

@@ -14,6 +14,8 @@ public struct NowPlaying: Equatable, Sendable {
     public var progress: TimeInterval
     public var isPlaying: Bool
     public var deviceName: String?
+    /// Spotify's word for the kind of device, e.g. `Smartphone`, `TV`, `Speaker`.
+    public var deviceType: String?
     /// The track's or episode's Spotify URI, e.g. `spotify:track:...`. Used to like it.
     public var uri: String?
     public var albumURI: String?
@@ -27,6 +29,7 @@ public struct NowPlaying: Equatable, Sendable {
     public init(
         trackID: String? = nil, title: String, subtitle: String = "", album: String = "", artworkURL: URL? = nil,
         duration: TimeInterval = 0, progress: TimeInterval = 0, isPlaying: Bool = false, deviceName: String? = nil,
+        deviceType: String? = nil,
         uri: String? = nil, albumURI: String? = nil, contextURI: String? = nil,
         shuffle: Bool = false, repeatMode: SpotifyRepeat = .off, disallows: Set<String> = []
     ) {
@@ -39,6 +42,7 @@ public struct NowPlaying: Equatable, Sendable {
         self.progress = progress
         self.isPlaying = isPlaying
         self.deviceName = deviceName
+        self.deviceType = deviceType
         self.uri = uri
         self.albumURI = albumURI
         self.contextURI = contextURI
@@ -100,6 +104,7 @@ public enum SpotifyPlayback {
             progress: number(root["progress_ms"]) / 1000,
             isPlaying: (root["is_playing"] as? Bool) ?? false,
             deviceName: device?["name"] as? String,
+            deviceType: device?["type"] as? String,
             uri: item["uri"] as? String,
             albumURI: album?["uri"] as? String,
             contextURI: context?["uri"] as? String,

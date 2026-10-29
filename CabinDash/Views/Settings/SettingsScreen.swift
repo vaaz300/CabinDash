@@ -99,7 +99,7 @@ struct SettingsScreen: View {
                 if model.spotify.phase != .notConfigured {
                     Section {
                         DisclosureGroup("Spotify log") {
-                            let log = model.library.log
+                            let log = model.spotify.log
                             if log.lines.isEmpty {
                                 Text("Nothing yet. Play something, then look here.")
                                     .font(.footnote)

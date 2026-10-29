@@ -20,8 +20,9 @@ struct SpotifyReply {
     }
 }
 
-/// Connects Cabin Dash to Spotify through its Web API: shows what the Spotify app is playing and sends play, pause, next and previous.
-/// Spotify keeps playing in its own app. This only reads and steers it, so it needs the Spotify app to be the active player.
+/// Connects Cabin Dash to Spotify. Music on this iPhone is played, shown and steered through the Spotify app itself
+/// (`PhonePlayer`, Spotify's iOS SDK). Spotify's web service is used for signing in, browsing, and music on a TV or speaker.
+/// Which of the two Now Playing shows, and where the buttons go, is decided in one place: `SpotifyPhone.source`.
 @MainActor @Observable
 final class SpotifyModel {
     enum Phase: Equatable {
@@ -47,19 +48,22 @@ final class SpotifyModel {
     private(set) var chosenDeviceID: String?
     private(set) var chosenDeviceName: String?
 
-    let clientID: String
+    /// What Now Playing says while a tap on Play is being carried out on this iPhone. Nil when nothing is under way.
+    private(set) var starting: String?
 
+    let clientID: String
+    /// Plays, shows and steers music on this iPhone through the Spotify app.
+    let phone = PhonePlayer()
+    /// What happened while playing, for the log in Settings.
+    let log = SpotifyLog()
+
+    /// Where Now Playing's song comes from, which also decides where the buttons send their commands.
+    @ObservationIgnored private var source: SpotifyPhone.Source = .nothing
     /// What the Spotify web service last said is playing, and when. Nil when it said nothing is playing anywhere.
     @ObservationIgnored private var webPlaying: NowPlaying?
     @ObservationIgnored private var webObservedAt = Date()
-    /// What the Spotify app on this iPhone last said it is playing, over the connection to it, and when. Nil when not connected.
-    @ObservationIgnored private var appPlaying: RemotePlayback?
-    @ObservationIgnored private var appObservedAt = Date()
-    /// The name Spotify gives this iPhone in its device list, once known, for labelling what the app says is playing.
+    /// The name Spotify gives this iPhone in its device list, once known.
     @ObservationIgnored private var phoneName: String?
-    @ObservationIgnored private weak var app: SpotifyWake?
-    /// Told, in plain words, whenever the web service's answer about what is playing changes, for the Spotify log in Settings.
-    @ObservationIgnored var onNote: ((String) -> Void)?
     @ObservationIgnored private var lastWebNote = ""
 
     @ObservationIgnored private var board = SpotifyProblemBoard()
@@ -97,6 +101,12 @@ final class SpotifyModel {
         } else {
             phase = .signedOut
         }
+
+        phone.configure(clientID: configured)
+        phone.onEvent = { [weak self] text in self?.log.add(text) }
+        phone.onChange = { [weak self] in self?.showWhatIsPlaying() }
+        phone.onStarting = { [weak self] text in self?.starting = text }
+        phone.lookUpArt = { [weak self] uri in await self?.trackArt(for: uri) }
     }
 
     var statusText: String {
@@ -168,35 +178,41 @@ final class SpotifyModel {
         }
     }
 
-    // MARK: The Spotify app on this iPhone
+    // MARK: What is playing
 
-    /// Lets the Spotify app on this iPhone speak for itself. Spotify's web service has answered "nothing is playing" while that
-    /// app was playing, so while Cabin Dash is connected to the app, its word fills in whenever the web service has none.
-    func attach(_ app: SpotifyWake) {
-        self.app = app
-        app.onPlayback = { [weak self] state in self?.applyApp(state) }
-    }
-
-    private func applyApp(_ state: RemotePlayback?) {
-        appPlaying = state
-        appObservedAt = Date()
+    /// The name Spotify's device list gives this iPhone, so the web service's answer can be recognised as this phone's.
+    func setPhoneName(_ name: String?) {
+        guard phoneName != name else { return }
+        phoneName = name
         showWhatIsPlaying()
     }
 
-    /// The name Spotify's device list gives this iPhone, so what the app says is playing can be said to be playing on it.
-    func setPhoneName(_ name: String?) {
-        phoneName = name
-    }
+    private var otherDeviceChosen: Bool { chosenDeviceID != nil }
 
+    /// Picks the source with `SpotifyPhone.source` and shows its song.
     private func showWhatIsPlaying() {
-        let shown = SpotifyPlayback.merged(web: webPlaying, remote: appPlaying, phoneName: phoneName, previous: nowPlaying)
-        nowPlaying = shown
-        // The position counts on from the moment the source it came from was read.
-        let fromApp = shown != nil && shown?.uri == appPlaying?.uri && shown?.progress == appPlaying?.position
-        observedAt = fromApp ? appObservedAt : webObservedAt
+        source = SpotifyPhone.source(
+            otherDeviceChosen: otherDeviceChosen, connected: phone.isConnected, app: phone.state, web: webPlaying, phoneName: phoneName
+        )
+        switch source {
+        case .phone(let app, let live):
+            nowPlaying = SpotifyPhone.nowPlaying(from: app, live: live, deviceName: phoneName ?? "This iPhone", art: phone.art)
+            observedAt = phone.stateObservedAt
+            hasAnswered = true
+        case .phoneByWeb(let web), .otherDevice(let web):
+            nowPlaying = web
+            observedAt = webObservedAt
+        case .nothing:
+            nowPlaying = nil
+        }
     }
 
-    /// One line in the log each time the web service's answer changes, so a disagreement with the Spotify app can be seen.
+    /// True when the buttons go to the Spotify app on this iPhone, false when they go to the web service.
+    private var steersPhone: Bool {
+        SpotifyPhone.steersPhone(source, otherDeviceChosen: otherDeviceChosen, connected: phone.isConnected)
+    }
+
+    /// One line in the log each time the web service's answer changes.
     private func noteWebAnswer() {
         let text: String
         if let web = webPlaying {
@@ -206,49 +222,87 @@ final class SpotifyModel {
         }
         guard text != lastWebNote else { return }
         lastWebNote = text
-        onNote?(text)
+        log.add(text)
     }
 
-    /// Runs `send` against the Spotify app when it is the better informed about what is on screen (see
-    /// `SpotifyPlayback.controlsGoToApp`). False when the web service should be used, or the app cannot be asked.
-    private func throughTheApp(_ send: (SpotifyWake) -> Bool) -> Bool {
-        guard let app, SpotifyPlayback.controlsGoToApp(
-            web: webPlaying, remote: appPlaying, phoneName: phoneName, connected: app.isConnected
-        ) else { return false }
-        return send(app)
+    /// The album picture of a song, from Spotify's catalogue.
+    private func trackArt(for uri: String) async -> TrackArt? {
+        let parts = uri.split(separator: ":")
+        guard parts.count == 3, parts[1] == "track",
+              let reply = try? await perform(SpotifyEndpoint.track(id: String(parts[2]))), reply.isSuccess else { return nil }
+        return SpotifyLibrary.parseTrackArt(reply.data)
+    }
+
+    // MARK: This iPhone
+
+    /// Plays on this iPhone through the Spotify app. With a TV or speaker picked before, this iPhone becomes the default again.
+    func playOnPhone(_ plan: SpotifyPhone.PlayPlan) {
+        if otherDeviceChosen { forgetChosenDevice() }
+        phone.play(plan)
+    }
+
+    /// The "This iPhone" row: starts Spotify on this iPhone with its last song, and makes this iPhone the default again.
+    func startSpotifyHere() {
+        forgetChosenDevice()
+        phone.startHere()
+    }
+
+    /// A link that opened Cabin Dash. The only one expected is Spotify's answer after it was started on this iPhone.
+    func handleIncoming(_ url: URL) {
+        if !phone.handleIncoming(url), url.scheme == SpotifyAuth.redirectScheme {
+            log.add("A Spotify link arrived that Cabin Dash could not read")
+        }
     }
 
     // MARK: Controls
 
+    /// Each control goes to the device whose music is on screen: the Spotify app for this iPhone, the web service otherwise.
+
     func togglePlayPause() async {
         let playing = nowPlaying?.isPlaying ?? false
+        if steersPhone {
+            phone.control(playing ? .pause : .resume)
+            return
+        }
         if nowPlaying != nil {
             nowPlaying?.isPlaying = !playing
             observedAt = Date()
         }
-        if throughTheApp({ playing ? $0.pause() : $0.resume() }) { return }
         await command(playing ? SpotifyEndpoint.pause() : SpotifyEndpoint.resume())
     }
 
     func skipNext() async {
-        if throughTheApp({ $0.skipNext() }) { return }
+        if steersPhone {
+            phone.control(.next)
+            return
+        }
         await command(SpotifyEndpoint.next())
     }
 
     func skipPrevious() async {
-        if throughTheApp({ $0.skipPrevious() }) { return }
+        if steersPhone {
+            phone.control(.previous)
+            return
+        }
         await command(SpotifyEndpoint.previous())
     }
 
     func seek(toSeconds seconds: Double) async {
-        if throughTheApp({ $0.seek(toSeconds: seconds) }) { return }
+        if steersPhone {
+            phone.control(.seek(seconds))
+            return
+        }
         await command(SpotifyEndpoint.seek(milliseconds: Int(max(0, seconds) * 1000)))
     }
 
-    /// Flips shuffle on the screen at once, then tells Spotify. If Spotify refuses, the next read puts it back.
+    /// Flips shuffle on the screen at once, then tells the device. If it refuses, the next word from it puts it back.
     func toggleShuffle() async {
         guard let current = nowPlaying else { return }
         let target = !current.shuffle
+        if steersPhone {
+            phone.control(.shuffle(target))
+            return
+        }
         nowPlaying?.shuffle = target
         await command(SpotifyEndpoint.shuffle(target))
     }
@@ -257,6 +311,10 @@ final class SpotifyModel {
     func cycleRepeat() async {
         guard let current = nowPlaying else { return }
         let target = current.repeatMode.next
+        if steersPhone {
+            phone.control(.repeatMode(target))
+            return
+        }
         nowPlaying?.repeatMode = target
         await command(SpotifyEndpoint.setRepeat(target))
     }
@@ -267,11 +325,10 @@ final class SpotifyModel {
         await command(SpotifyEndpoint.shuffle(on))
     }
 
-    /// Starts playing an album, a playlist or a list of songs. True when Spotify accepted it.
+    /// Starts playing an album, a playlist or a list of songs through the web service. True when Spotify accepted it.
     ///
-    /// This is the plain version, used when the device list could not be read: it plays on whichever device Spotify says is
-    /// active. When none is, it tries the device the person picked in the list, if they have picked one. Normally a tap on
-    /// Play goes through `SpotifyLibraryModel.play`, which picks this iPhone (or the person's pick) first.
+    /// Used only for a TV or speaker the person picked, when the device list could not be read: it plays on whichever device
+    /// Spotify says is active, and when none is, on the picked one. Music on this iPhone goes through `playOnPhone`.
     @discardableResult
     func play(_ target: SpotifyPlayTarget) async -> Bool {
         guard phase == .signedIn else { return false }
@@ -295,9 +352,8 @@ final class SpotifyModel {
         return failure == nil
     }
 
-    /// Starts playing on a named device, which Spotify accepts even for a device it does not yet count as active.
-    /// Nil when Spotify accepted it, otherwise why not. A failure is not shown here: the caller may have another way to
-    /// make it work (starting the Spotify app on the phone), so it calls `showPlayFailure` only when it has run out of them.
+    /// Starts playing on a TV or speaker the person picked, which Spotify accepts even for a device it does not yet count as
+    /// active. Nil when Spotify accepted it, otherwise why not; the caller shows it with `showPlayFailure`.
     func play(_ target: SpotifyPlayTarget, on device: SpotifyDevice) async -> SpotifyFailure? {
         guard phase == .signedIn else { return .notSignedIn }
         let failure = await attempt(SpotifyEndpoint.play(target, deviceID: device.id))
@@ -321,6 +377,7 @@ final class SpotifyModel {
     func transfer(to device: SpotifyDevice) async -> Bool {
         chosenDeviceID = device.id
         chosenDeviceName = device.name
+        showWhatIsPlaying()
         return await command(SpotifyEndpoint.transfer(to: device.id, play: true))
     }
 
@@ -328,12 +385,17 @@ final class SpotifyModel {
     func forgetChosenDevice() {
         chosenDeviceID = nil
         chosenDeviceName = nil
+        showWhatIsPlaying()
     }
 
-    /// Adds a song or episode to the end of the queue. True when Spotify accepted it.
+    /// Adds a song or episode to the end of the queue. True when it was sent.
     @discardableResult
     func addToQueue(uri: String) async -> Bool {
-        await command(SpotifyEndpoint.addToQueue(uri: uri))
+        if steersPhone, phone.isConnected {
+            phone.control(.enqueue(uri))
+            return true
+        }
+        return await command(SpotifyEndpoint.addToQueue(uri: uri))
     }
 
     /// Nil when Spotify accepted the request, otherwise why it did not. Remembers nothing: the caller decides what to show.
@@ -419,7 +481,7 @@ final class SpotifyModel {
         token = nil
         KeychainStore.delete(account: Self.tokenAccount)
         webPlaying = nil
-        appPlaying = nil
+        phone.forget()
         nowPlaying = nil
         hasAnswered = false
         forgetChosenDevice()

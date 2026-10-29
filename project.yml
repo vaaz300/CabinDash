@@ -9,8 +9,8 @@ options:
 packages:
   CabinCore:
     path: CabinCore
-  # Spotify's own iOS SDK, used for one thing: starting the Spotify app on this iPhone and coming straight back.
-  # See CabinDash/Model/SpotifyWake.swift and docs/SPOTIFY-RULES.md.
+  # Spotify's own iOS SDK: Cabin Dash plays and steers music on this iPhone through it (starting the Spotify app when needed).
+  # See CabinDash/Model/PhonePlayer.swift and docs/SPOTIFY-RULES.md.
   SpotifyiOS:
     url: https://github.com/spotify/ios-sdk
     exactVersion: 5.0.1

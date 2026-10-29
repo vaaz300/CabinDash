@@ -195,9 +195,9 @@ final class AppModel {
         library.startSpotifyHere()
     }
 
-    /// A link that opened Cabin Dash. The only ones expected are Spotify's answer to a hand-over; anything else is ignored.
+    /// A link that opened Cabin Dash. The only one expected is Spotify's answer after it was started on this iPhone.
     func handleIncoming(_ url: URL) {
-        library.handleIncoming(url)
+        spotify.handleIncoming(url)
     }
 
     func navigate(to place: Place) {

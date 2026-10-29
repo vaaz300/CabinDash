@@ -96,21 +96,31 @@ private let phoneName = "Evan's iPhone"
 
 /// The buttons go to the device whose music is on screen: the Spotify app for this phone, the web service for anything else.
 @Suite struct SpotifyPhoneSteeringTests {
-    @Test func thePhonesOwnSongIsSteeredThroughTheSpotifyApp() {
-        #expect(SpotifyPhone.steersPhone(.phone(app(), live: false), otherDeviceChosen: false))
+    @Test func thePhonesOwnSongIsSteeredThroughTheSpotifyAppEvenAfterTheConnectionEnded() {
+        // A press then makes the connection again, or starts Spotify, which is Spotify's way back after a pause.
+        #expect(SpotifyPhone.steersPhone(.phone(app(), live: false), otherDeviceChosen: false, connected: false))
+        #expect(SpotifyPhone.steersPhone(.phone(app(), live: true), otherDeviceChosen: false, connected: true))
     }
 
-    @Test func theWebServicesViewOfThisPhoneIsStillSteeredThroughTheSpotifyApp() {
-        #expect(SpotifyPhone.steersPhone(.phoneByWeb(web(on: phoneName, type: "Smartphone")), otherDeviceChosen: false))
+    @Test func aPlayingPhoneSeenOnlyByTheWebServiceIsSteeredByIt() {
+        let here = web(on: phoneName, type: "Smartphone")
+        #expect(SpotifyPhone.steersPhone(.phoneByWeb(here), otherDeviceChosen: false, connected: true))
+        #expect(!SpotifyPhone.steersPhone(.phoneByWeb(here), otherDeviceChosen: false, connected: false))
+    }
+
+    @Test func aPausedPhoneSeenOnlyByTheWebServiceIsWokenThroughTheSpotifyApp() {
+        // Paused, the Spotify app goes to sleep and the web service cannot wake it; only starting the app can.
+        let pausedHere = web(on: phoneName, type: "Smartphone", playing: false)
+        #expect(SpotifyPhone.steersPhone(.phoneByWeb(pausedHere), otherDeviceChosen: false, connected: false))
     }
 
     @Test func musicOnAnotherDeviceIsSteeredByTheWebService() {
-        #expect(!SpotifyPhone.steersPhone(.otherDevice(web(on: "Xiaomi TV Box", type: "TV")), otherDeviceChosen: false))
+        #expect(!SpotifyPhone.steersPhone(.otherDevice(web(on: "Xiaomi TV Box", type: "TV")), otherDeviceChosen: false, connected: true))
     }
 
     @Test func aChosenDeviceIsAlwaysSteeredByTheWebService() {
-        #expect(!SpotifyPhone.steersPhone(.nothing, otherDeviceChosen: true))
-        #expect(!SpotifyPhone.steersPhone(.phone(app(), live: true), otherDeviceChosen: true))
+        #expect(!SpotifyPhone.steersPhone(.nothing, otherDeviceChosen: true, connected: true))
+        #expect(!SpotifyPhone.steersPhone(.phone(app(), live: true), otherDeviceChosen: true, connected: true))
     }
 }
 

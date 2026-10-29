@@ -147,6 +147,11 @@ public enum SpotifyEndpoint {
 
     // MARK: The person's library
 
+    /// One song from Spotify's catalogue, for its album picture. It works whatever the player is doing.
+    public static func track(id: String) -> SpotifyRequest {
+        SpotifyRequest(method: "GET", path: "/v1/tracks/" + FormEncoding.escape(id))
+    }
+
     public static func profile() -> SpotifyRequest {
         SpotifyRequest(method: "GET", path: "/v1/me")
     }

@@ -188,69 +188,6 @@ public enum SpotifyDevices {
         return "This iPhone"
     }
 
-    /// Where a tap on Play sends the music.
-    public enum Route: Equatable, Sendable {
-        /// Send the play command to this device by its id. That works for a device Spotify does not yet count as active.
-        case device(SpotifyDevice)
-        /// No phone is listed, so the Spotify app on this iPhone is not running. It has to be started first.
-        case wakeThisPhone
-        /// The device list could not be read. Send the command with no device and let Spotify decide, as before.
-        case spotifyDecides
-    }
-
-    /// The device a tap on Play uses: the one the person picked in the list while it is still listed and takes commands,
-    /// otherwise the phone. A device being active is not a pick, and Cabin Dash never falls back to a TV or speaker the
-    /// person did not choose. With no usable phone the Spotify app on this iPhone has to be started.
-    ///
-    /// A phone is usable only if it is known to answer (`phoneIsAwake`: Cabin Dash is connected to its Spotify app). Spotify's SDK documents that the Spotify app on an
-    /// iPhone stops listening soon after it leaves the screen without playing, while Spotify's list keeps showing it, and
-    /// keeps calling it active. So what Spotify's list says about a phone is not evidence, and a phone that has not shown
-    /// it is awake goes straight to having Spotify started on it rather than being sent a command that nobody answers.
-    public static func route(devices: [SpotifyDevice]?, chosenID: String?, phoneIsAwake: Bool) -> Route {
-        guard let devices else { return .spotifyDecides }
-        func usable(_ device: SpotifyDevice) -> Bool {
-            !device.isRestricted && (device.type != "Smartphone" || phoneIsAwake)
-        }
-        if let chosenID, let picked = devices.first(where: { $0.id == chosenID && usable($0) }) {
-            return .device(picked)
-        }
-        if let phone = devices.first(where: { $0.type == "Smartphone" && usable($0) }) {
-            return .device(phone)
-        }
-        return .wakeThisPhone
-    }
-
-    /// What to ask the Spotify app on this iPhone to play, and what to add once it is playing. The SDK takes one address and no
-    /// shuffle. Whatever it cannot express is not sent to the Spotify app again as a second play command, which restarted the
-    /// song and left the app unanswering; it is added through the connection to the app, which replaces nothing: the next songs
-    /// of a list go into the queue (`followUps`) and a shuffle is switched on (`shuffleAfter`). A song tapped inside a
-    /// playlist or album therefore plays alone, and what follows is what Spotify plays next.
-    public struct WakePlan: Equatable, Sendable {
-        public var uri: String
-        public var followUps: [String]
-        public var shuffleAfter: Bool
-
-        public init(uri: String, followUps: [String] = [], shuffleAfter: Bool = false) {
-            self.uri = uri
-            self.followUps = followUps
-            self.shuffleAfter = shuffleAfter
-        }
-    }
-
-    /// How many of the songs after the first are queued.
-    public static let maxFollowUps = 20
-
-    public static func wakePlan(for target: SpotifyPlayTarget, shuffled: Bool) -> WakePlan {
-        switch target {
-        case .context(let uri, let startAtURI):
-            if let startAtURI { return WakePlan(uri: startAtURI, shuffleAfter: shuffled) }
-            return WakePlan(uri: uri, shuffleAfter: shuffled)
-        case .uris(let uris):
-            guard let first = uris.first else { return WakePlan(uri: "") }
-            return WakePlan(uri: first, followUps: Array(uris.dropFirst().prefix(maxFollowUps)), shuffleAfter: shuffled)
-        }
-    }
-
     /// Whether the player shows the music on `device`, which is how a command that Spotify merely accepted is told apart from
     /// one that started playing. A phone whose app is asleep accepts the command and then plays nothing.
     public static func startedOn(_ device: SpotifyDevice, playingOn deviceName: String?) -> Bool {
@@ -351,6 +288,13 @@ public enum SpotifyLibrary {
               let array = value as? [Any] else { return nil }
         let flags = array.compactMap { $0 as? Bool }
         return flags.count == array.count ? flags : nil
+    }
+
+    /// The answer of `GET /v1/tracks/{id}`: the song's address, its album's largest picture and the album's address.
+    public static func parseTrackArt(_ data: Data) -> TrackArt? {
+        guard let root = object(data), let uri = root["uri"] as? String, !uri.isEmpty else { return nil }
+        let album = root["album"] as? [String: Any]
+        return TrackArt(uri: uri, artworkURL: SpotifyPlayback.largestImage(in: pictures(album?["images"])), albumURI: album?["uri"] as? String)
     }
 
     public static func parseProfile(_ data: Data) -> SpotifyProfile? {
