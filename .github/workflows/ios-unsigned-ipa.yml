@@ -6,11 +6,17 @@ name: Unsigned IPA (manual)
 # Run it only after "iOS build" is green. It is manual on purpose (Actions tab > this workflow > Run workflow),
 # so it never spends macOS minutes by itself. It needs no secrets and no Apple account. Nothing in the .ipa is signed.
 #
-# Not verified: this workflow has never run. Whether Sideloadly or AltStore accept the file, and how long the
-# result stays installed, is not something this repository can prove.
+# Versions: every IPA is a beta numbered from this workflow's run number (run 21 is beta 2.1, run 22 is beta 2.2), with
+# the run number as its build number. For a full release, type its version (for example 1.0) into "release_version" when
+# starting the run. The version is written into the app (Settings > About) and the file name. See CHANGELOG.md.
 
 on:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Leave empty for a beta (numbered from this run: run 22 is beta 2.2). For a full release, its version, e.g. 1.0"
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -43,11 +49,22 @@ jobs:
       - name: Check the generated project contains everything
         run: python3 scripts/ci/verify_generated_project.py
 
+      - name: Work out the version
+        id: version
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          RELEASE_VERSION: ${{ inputs.release_version }}
+        # A release version that is not numbers and dots stops the run here (the script exits 1, and bash's pipefail keeps it).
+        run: python3 scripts/ci/app_version.py "$RUN_NUMBER" "$RELEASE_VERSION" | tee -a "$GITHUB_OUTPUT"
+
       - name: Archive for iOS devices without signing
         env:
           # Optional. The Client ID of your Spotify app (a public identifier, not a secret). Set it under
           # Settings > Secrets and variables > Actions > Variables. Left empty, the Spotify screen says it is not set up.
           SPOTIFY_CLIENT_ID: ${{ vars.SPOTIFY_CLIENT_ID }}
+          APP_VERSION: ${{ steps.version.outputs.version }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
+          APP_CHANNEL: ${{ steps.version.outputs.channel }}
         run: |
           xcodebuild archive \
             -project CabinDash.xcodeproj \
@@ -60,6 +77,9 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             SPOTIFY_CLIENT_ID="$SPOTIFY_CLIENT_ID" \
+            MARKETING_VERSION="$APP_VERSION" \
+            CURRENT_PROJECT_VERSION="$APP_BUILD" \
+            CABIN_CHANNEL="$APP_CHANNEL" \
             2>&1 | tee ci-artifacts/xcodebuild-archive.log
 
       - name: Summarize archive
@@ -67,6 +87,10 @@ jobs:
         run: python3 scripts/ci/summarize_xcodebuild.py ci-artifacts/xcodebuild-archive.log --title "Unsigned archive"
 
       - name: Package the .ipa
+        env:
+          APP_LABEL: ${{ steps.version.outputs.label }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
+          APP_SLUG: ${{ steps.version.outputs.slug }}
         run: |
           app="build/CabinDash.xcarchive/Products/Applications/CabinDash.app"
           if [ ! -d "$app" ]; then
@@ -74,23 +98,25 @@ jobs:
             ls -R build/CabinDash.xcarchive/Products || true
             exit 1
           fi
+          ipa="ci-artifacts/CabinDash-${APP_SLUG}.ipa"
           rm -rf build/ipa
           mkdir -p build/ipa/Payload
           cp -R "$app" build/ipa/Payload/
-          (cd build/ipa && zip -qry ../../ci-artifacts/CabinDash-unsigned.ipa Payload)
-          ls -l ci-artifacts/CabinDash-unsigned.ipa
+          (cd build/ipa && zip -qry "../../$ipa" Payload)
+          ls -l "$ipa"
           {
-            echo "### Unsigned IPA"
+            echo "### Cabin Dash ${APP_LABEL} (build ${APP_BUILD}), unsigned IPA"
             echo
-            echo "Built from commit \`${GITHUB_SHA}\`. Download **cabindash-unsigned-ipa** from the Artifacts list below."
+            echo "Built from commit \`${GITHUB_SHA}\`. Download **cabindash-${APP_SLUG}** from the Artifacts list below."
             echo "It is not signed. It will not install on an iPhone until a tool signs it with your Apple ID."
+            echo "Settings > About in the app shows ${APP_LABEL} (build ${APP_BUILD}). What changed: CHANGELOG.md."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the .ipa
         uses: actions/upload-artifact@v4
         with:
-          name: cabindash-unsigned-ipa
-          path: ci-artifacts/CabinDash-unsigned.ipa
+          name: cabindash-${{ steps.version.outputs.slug }}
+          path: ci-artifacts/CabinDash-${{ steps.version.outputs.slug }}.ipa
           if-no-files-found: error
           retention-days: 7
 

@@ -178,6 +178,8 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
                "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"})
     record("Info.plist has a SpotifyClientID entry that comes from a build setting",
            plist.get("SpotifyClientID") == "$(SPOTIFY_CLIENT_ID)")
+    record("Info.plist has a CabinDashChannel entry that comes from a build setting",
+           plist.get("CabinDashChannel") == "$(CABIN_CHANNEL)")
     record("Info.plist has a launch screen colour and a scene manifest",
            "UILaunchScreen" in plist and "UIApplicationSceneManifest" in plist)
     return results

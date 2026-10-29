@@ -10,9 +10,12 @@ struct SettingsScreen: View {
     @State private var confirmReset = false
 
     private var version: String {
-        let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
-        return "\(short) (\(build))"
+        let info = Bundle.main
+        return AppVersion.describe(
+            channel: info.object(forInfoDictionaryKey: "CabinDashChannel") as? String,
+            version: info.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+            build: info.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        )
     }
 
     private var spotifyFooter: String {

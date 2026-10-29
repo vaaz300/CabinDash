@@ -53,7 +53,7 @@ A rented cloud Mac does not change this. It can build, but it cannot connect to 
 ## Route B: unsigned build + sideloading tool (free)
 
 1. In GitHub: **Actions > Unsigned IPA (manual) > Run workflow**. Run it only after **iOS build** is green.
-2. When it finishes, open the run and download the artifact **cabindash-unsigned-ipa** (a zip with `CabinDash-unsigned.ipa` inside; unzip it).
+2. When it finishes, open the run and download the artifact named after the version, such as **cabindash-beta-2.2** (a zip with `CabinDash-beta-2.2.ipa` inside; unzip it). Every run is a beta numbered from the run: see "Versions" in the README and `CHANGELOG.md`. Before Beta 2.2 the artifact was called **cabindash-unsigned-ipa**.
 3. Install a sideloading tool on your Windows PC. **iLoader worked for this project.** Sideloadly's Apple sign-in failed at the two-factor step for the person who tried it first, and AltStore was not tried, so treat both as possible but unproven here. Follow that tool's own instructions, since they change; I could not check them. They typically need Apple's own iTunes and iCloud for Windows (downloaded from Apple, not the Microsoft Store versions) and your phone plugged in by USB.
 4. The tool signs the file using your free Apple ID and installs it.
 5. On the iPhone: **Settings > Privacy & Security > Developer Mode** (turn on, restart), and **Settings > General > VPN & Device Management** to trust your Apple ID if the app will not open.
@@ -99,5 +99,5 @@ Good to know:
 | `Config/Signing.local.xcconfig` | **Not** checked in (git-ignored). Your own Team ID and bundle id, for building on a Mac you own. |
 | `project.yml` | Reads the bundle id from the xcconfig. Has no team and no signing style on purpose. |
 | `.github/workflows/ios-build.yml` | Simulator build. `CODE_SIGNING_ALLOWED=NO`, no secrets. |
-| `.github/workflows/ios-unsigned-ipa.yml` | Manual. Produces the unsigned `.ipa` for route B. No secrets. |
+| `.github/workflows/ios-unsigned-ipa.yml` | Manual. Produces the unsigned `.ipa` for route B, numbered as a beta from its run (or a release when **release_version** is filled in). No secrets. |
 | `.github/workflows/ios-device-build.yml` | Manual and **off** until `ENABLE_DEVICE_BUILD=true`. Route C. The only workflow that reads secrets. |

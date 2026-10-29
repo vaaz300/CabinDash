@@ -6,7 +6,7 @@ A frosted dock runs down the left edge and stays put on every screen: the time, 
 
 - **Home.** Three live widgets: a map that follows you (with the next turn while you navigate), what Spotify is playing with previous, play/pause and next, and your speed with the trip so far. Tap a widget to open its full screen.
 - **Map.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
-- **Music.** A small Spotify client: what is playing with previous, play/pause, next, seek, shuffle and repeat, a heart to like the song, your playlists and Liked Songs, search, the queue, and a device picker. Spotify's app on the phone plays the sound; Cabin Dash plays and steers it through Spotify's iOS SDK, and opens it for a moment when it is asleep. Search is switched off while the car is moving (Passenger mode in Settings lifts that). Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`. Spotify's rules and where Cabin Dash falls short of them: `docs/SPOTIFY-RULES.md`.
+- **Music.** A small Spotify client: what is playing with previous, play/pause, next, seek, shuffle and repeat, Spotify's like button, your playlists and Liked Songs, search, the queue, and a device picker. Spotify's app on the phone plays the sound; Cabin Dash plays and steers it through Spotify's iOS SDK, and opens it for a moment when it is asleep. Search is switched off while the car is moving (Passenger mode in Settings lifts that). Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`. Spotify's rules and where Cabin Dash falls short of them: `docs/SPOTIFY-RULES.md`.
 - **Drive.** Live speed dial, heading, trip distance, trip time and average speed from the iPhone's GPS.
 - **Settings.** Units, directions app, Spotify, theme and wallpaper, saved places.
 - **Other apps (optional, off by default).** Turn on **Show Other apps in the dock** in Settings and an Apps button appears. It lists the apps found on your iPhone, with each app's App Store icon; tapping one leaves Cabin Dash and opens it. iOS does not allow another app's screen inside Cabin Dash.
@@ -17,12 +17,28 @@ The track that is playing and the next turn also show as thin bars at the top ri
 
 This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud Mac" does the building.
 
+## Versions
+
+Cabin Dash is in beta. Every IPA built by the **Unsigned IPA (manual)** workflow is a beta numbered from that workflow's
+run: run 1 was **Beta 0.1**, run 21 was **Beta 2.1**, and the next run (22) makes **Beta 2.2**. The build number is the
+run number, and a run that fails still uses its number.
+
+* **Where to see it:** Settings > About ("Beta 2.2 (build 22)"), the IPA's file name (`CabinDash-beta-2.2.ipa`, in the
+  artifact **cabindash-beta-2.2**), and the run's summary on GitHub. Builds made in Xcode or on the simulator say
+  "Development build".
+* **What changed in each:** [CHANGELOG.md](CHANGELOG.md), from Beta 0.1 on. Betas 0.1 to 2.1 were numbered afterwards
+  from their runs; inside the app they say "1.0 (1)".
+* **A full release:** when you are happy, run **Actions > Unsigned IPA (manual) > Run workflow** and type the release's
+  version (for example 1.0) into **release_version**. That build says "1.0 (build N)". Leave the box empty for a beta.
+* **How:** `scripts/ci/app_version.py` turns the run number into the version (tested with the other script tests), the
+  workflow passes it to Xcode, and `AppVersion` in CabinCore words it for Settings (unit tests).
+
 ## Where things stand
 
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 374 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 378 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
@@ -198,7 +214,7 @@ CABIN_BUNDLE_ID = com.yourname.cabindash
 
 ```
 .github/workflows/ios-build.yml          Simulator build and tests (the main one)
-.github/workflows/ios-unsigned-ipa.yml   Manual. Unsigned .ipa for sideloading
+.github/workflows/ios-unsigned-ipa.yml   Manual. Unsigned .ipa for sideloading, versioned as a beta from its run (CHANGELOG.md)
 .github/workflows/ios-device-build.yml   Manual and OFF. Signed TestFlight upload
 .github/actions/setup-ios-toolchain/     Pins Xcode and XcodeGen for all three
 project.yml            Xcode project recipe (XcodeGen)

@@ -24,6 +24,7 @@ sys.path.insert(0, str(CI))
 sys.path.insert(0, str(REPO / "scripts"))
 
 import add_spotify_icon  # noqa: E402
+import app_version  # noqa: E402
 import check_repo  # noqa: E402
 import check_tests  # noqa: E402
 import pick_package_scheme  # noqa: E402
@@ -553,6 +554,55 @@ class AddSpotifyIconTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             code = add_spotify_icon.install(self.source(png_bytes(64, 64, 6)), self.root, name="../AppIcon")
         self.assertEqual(code, 1)
+
+
+class AppVersionTests(unittest.TestCase):
+    """scripts/ci/app_version.py turns the IPA workflow's run number into the beta version: run 21 is beta 2.1."""
+
+    def test_the_first_build_is_beta_0_1(self):
+        self.assertEqual(app_version.work_out(1)["version"], "0.1")
+
+    def test_build_21_is_beta_2_1(self):
+        info = app_version.work_out(21)
+        self.assertEqual(info, {"version": "2.1", "build": "21", "channel": "Beta", "label": "Beta 2.1", "slug": "beta-2.1"})
+
+    def test_every_tenth_build_starts_a_new_whole_number(self):
+        self.assertEqual(app_version.work_out(10)["version"], "1.0")
+        self.assertEqual(app_version.work_out(30)["version"], "3.0")
+        self.assertEqual(app_version.work_out(109)["version"], "10.9")
+
+    def test_a_full_release_uses_the_number_given_and_keeps_the_build_number(self):
+        info = app_version.work_out(35, "1.0")
+        self.assertEqual(info, {"version": "1.0", "build": "35", "channel": "Release", "label": "1.0", "slug": "1.0"})
+
+    def test_spaces_around_a_release_number_are_ignored(self):
+        self.assertEqual(app_version.work_out(35, " 1.2.3 ")["version"], "1.2.3")
+
+    def test_a_release_number_must_be_numbers_and_dots(self):
+        for bad in ("one", "1.", ".1", "1..0", "v1.0", "1.0-beta"):
+            with self.assertRaises(ValueError):
+                app_version.work_out(35, bad)
+
+    def test_a_run_number_below_one_is_refused(self):
+        with self.assertRaises(ValueError):
+            app_version.work_out(0)
+
+    def test_main_prints_lines_for_github_output(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = app_version.main(["app_version.py", "22"])
+        self.assertEqual(code, 0)
+        self.assertEqual(
+            out.getvalue().splitlines(),
+            ["version=2.2", "build=22", "channel=Beta", "label=Beta 2.2", "slug=beta-2.2"],
+        )
+
+    def test_main_explains_a_bad_release_number(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = app_version.main(["app_version.py", "22", "first"])
+        self.assertEqual(code, 1)
+        self.assertIn("first", err.getvalue())
 
 
 class PackageSchemeTests(unittest.TestCase):
