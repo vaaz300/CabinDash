@@ -531,6 +531,29 @@ class AddSpotifyIconTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual((self.imageset() / "SpotifyIcon.png").read_bytes(), newer)
 
+    def test_accepts_spotifys_own_files_which_are_one_pixel_off_square(self):
+        # Spotify's 2024 icon PNGs are 939 x 940 px. They are used exactly as supplied.
+        data = png_bytes(939, 940, 6)
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = add_spotify_icon.install(self.source(data), self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual((self.imageset() / "SpotifyIcon.png").read_bytes(), data)
+
+    def test_installs_under_another_asset_name(self):
+        data = png_bytes(135, 135, 6)
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = add_spotify_icon.install(self.source(data), self.root, name="SpotifyLiked")
+        self.assertEqual(code, 0)
+        imageset = self.root / "CabinDash" / "Assets.xcassets" / "SpotifyLiked.imageset"
+        self.assertEqual((imageset / "SpotifyLiked.png").read_bytes(), data)
+        contents = json.loads((imageset / "Contents.json").read_text())
+        self.assertEqual([image["filename"] for image in contents["images"]], ["SpotifyLiked.png"])
+
+    def test_rejects_an_asset_name_that_is_not_one_of_spotifys(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            code = add_spotify_icon.install(self.source(png_bytes(64, 64, 6)), self.root, name="../AppIcon")
+        self.assertEqual(code, 1)
+
 
 class PackageSchemeTests(unittest.TestCase):
     def test_single_library_package(self):

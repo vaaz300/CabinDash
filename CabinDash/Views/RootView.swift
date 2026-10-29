@@ -11,8 +11,13 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
 
+        let onMusic = model.router.current == .music
         ZStack(alignment: .leading) {
+            // Behind Music the wallpaper is blurred and darkened, so the music is what stands out.
             RibbonWallpaper(wallpaper: model.prefs.wallpaper)
+                .blur(radius: onMusic ? 30 : 0, opaque: true)
+                .overlay(Color.black.opacity(onMusic ? 0.6 : 0))
+                .animation(.easeOut(duration: 0.25), value: onMusic)
                 .ignoresSafeArea()
 
             ZStack {

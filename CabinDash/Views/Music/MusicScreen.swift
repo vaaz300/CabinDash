@@ -37,6 +37,9 @@ struct MusicScreen: View {
                 StatePanel(spotify: spotify)
             }
         }
+        // The background behind Music is darkened (RootView), so its text and Spotify's white icons are drawn for dark,
+        // whatever the theme. The device list keeps the theme: it is presented from outside this.
+        .environment(\.colorScheme, .dark)
         .padding(.leading, CarLayout.railReserve)
         .padding(.trailing, CarLayout.edge)
         .padding(.bottom, CarLayout.edge)

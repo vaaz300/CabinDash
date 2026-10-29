@@ -214,8 +214,8 @@ CabinDash/             The app itself
   Views/Drive/         Drive screen and gauge
   Views/Settings/      Settings screen
 scripts/ci/            Helpers the cloud build runs, and their tests
-scripts/check_schemes.py, swift_sanity.py, make_icon.py   (make_icon.py fits design/icon-source.png to the app icon)
-scripts/add_spotify_icon.py   Adds Spotify's icon to the app once you have downloaded it (docs/SPOTIFY-RULES.md)
+scripts/check_schemes.py, swift_sanity.py, make_icon.py   (make_icon.py draws the flat app icon, measured from design/icon-source.png)
+scripts/add_spotify_icon.py   Adds Spotify's own images (icons, like icons) from its design page (docs/SPOTIFY-RULES.md)
 design/                The artwork the app icon is made from
 docs/AUDIT.md          What was checked and changed before the first build
 docs/IOS-LIMITS.md     What iOS allows and how the app copes

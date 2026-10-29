@@ -4,16 +4,17 @@ import UIKit
 
 /// Says whose music this is and links back to the Spotify app, using Spotify's required wording.
 ///
-/// Spotify's guidelines want their own icon or logo, drawn by them and never redrawn. Cabin Dash cannot download it in its
-/// build environment, so it is added with `scripts/add_spotify_icon.py` (see docs/SPOTIFY-RULES.md). Until that has been done,
-/// the name is written out as plain text and nothing resembling the logo is drawn.
+/// Spotify's guidelines want their own icon or logo, drawn by them and never redrawn. It is Spotify's own file, from the
+/// design page, added with `scripts/add_spotify_icon.py` (see docs/SPOTIFY-RULES.md). Without it the name is written out
+/// as plain text and nothing resembling the logo is drawn.
 struct SpotifyAttribution: View {
     /// What the link opens: a track, album or playlist, or Spotify's home when nil.
     var uri: String?
     var compact = true
     @Environment(AppModel.self) private var model
 
-    /// Spotify's icon, when it has been added to the asset catalogue.
+    /// Spotify's white icon, when it has been added to the asset catalogue. White, because the Music screen is dark and
+    /// Spotify allows its green icon only on black or white.
     private static let icon = UIImage(named: "SpotifyIcon")
 
     var body: some View {

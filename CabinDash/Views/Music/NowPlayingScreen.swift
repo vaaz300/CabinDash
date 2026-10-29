@@ -267,10 +267,15 @@ private struct ModeButton: View {
     }
 }
 
-/// The heart: lit when the song is in Liked Songs. Dimmed until Spotify has said which; tapping it then asks again.
+/// Spotify's own like button: its "add" icon, and its green "added" icon when the song is in Liked Songs. Dimmed until
+/// Spotify has said which; tapping it then asks again. Without Spotify's icons in the asset catalogue, a heart instead.
 private struct LikeButton: View {
     let uri: String
     @Environment(AppModel.self) private var model
+
+    /// Spotify's icons from its design page, shown as supplied (see scripts/add_spotify_icon.py).
+    private static let likeIcon = UIImage(named: "SpotifyLike")
+    private static let likedIcon = UIImage(named: "SpotifyLiked")
 
     var body: some View {
         let liked = model.library.isLiked(uri)
@@ -278,11 +283,20 @@ private struct LikeButton: View {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
             model.library.toggleLiked(uri)
         } label: {
-            Image(systemName: liked == true ? "heart.fill" : "heart")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(liked == true ? Theme.accent : Color.primary.opacity(0.7))
-                .frame(width: 72, height: 40)
-                .contentShape(Rectangle())
+            Group {
+                if let icon = liked == true ? Self.likedIcon : Self.likeIcon {
+                    Image(uiImage: icon)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                } else {
+                    Image(systemName: liked == true ? "heart.fill" : "heart")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(liked == true ? Theme.accent : Color.primary.opacity(0.7))
+                }
+            }
+            .frame(width: 72, height: 40)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.88))
         .opacity(liked == nil ? 0.4 : 1)
