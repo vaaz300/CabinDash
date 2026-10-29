@@ -4,7 +4,7 @@ import Foundation
 import Observation
 import OSLog
 
-private let log = Logger(subsystem: "app.cabindash", category: "spotify")
+private let systemLog = Logger(subsystem: "app.cabindash", category: "spotify")
 
 /// What Spotify answered to one request.
 struct SpotifyReply {
@@ -467,7 +467,7 @@ final class SpotifyModel {
             if let sessionError = error as? ASWebAuthenticationSessionError, sessionError.code == .canceledLogin {
                 return // the person closed the sheet
             }
-            log.info("Spotify sign-in failed: \(error.localizedDescription, privacy: .public)")
+            systemLog.info("Spotify sign-in failed: \(error.localizedDescription, privacy: .public)")
             board.readFailed((error as? SpotifyFailure) ?? .offline)
             publishProblem()
         }
