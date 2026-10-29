@@ -70,12 +70,15 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
     private(set) var art: TrackArt?
 
     /// What Now Playing shows: the Spotify app's word, adjusted while Cabin Dash plays a list itself (`run`): skipping is
-    /// possible, and repeat all is Cabin Dash's own (the Spotify app is never told to repeat a single song's "list").
+    /// possible, and shuffle and repeat all are the list's own. The Spotify app only ever sees one song of that list, and
+    /// starting each song resets its shuffle, which is why the button went dark on the next song.
     var shownState: RemotePlayback? {
         guard var shown = state else { return nil }
         if let run {
             shown.canSkipNext = true
             shown.canSkipPrevious = true
+            shown.canToggleShuffle = true
+            shown.isShuffling = run.isShuffled
             if run.repeatsAll, shown.repeatMode == .off { shown.repeatMode = .context }
         }
         return shown
@@ -334,9 +337,12 @@ final class PhonePlayer: NSObject, SPTAppRemoteDelegate, SPTAppRemotePlayerState
             }
             return true
         case .shuffle(let on):
+            // The list is shuffled here; the Spotify app, playing one song of it at a time, is not told.
             current.shuffle(on)
             run = current
-            return false
+            log("Shuffle \(on ? "on" : "off") for the list")
+            onChange?()
+            return true
         case .repeatMode(let mode):
             current.repeatsAll = mode == .context
             run = current

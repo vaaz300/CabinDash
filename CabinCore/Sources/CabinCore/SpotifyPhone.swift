@@ -244,6 +244,9 @@ public struct SongRun: Equatable, Sendable {
     public private(set) var index: Int
     /// Repeat all: after the last song comes the first.
     public var repeatsAll = false
+    /// Whether the songs not yet played are in shuffled order. This, not the Spotify app's setting, is what the shuffle
+    /// button shows while Cabin Dash plays the list: the Spotify app only ever sees one song of it at a time.
+    public private(set) var isShuffled = false
     /// The order before shuffling.
     private var inOrder: [String]
 
@@ -307,6 +310,7 @@ public struct SongRun: Equatable, Sendable {
 
     public mutating func shuffle<Generator: RandomNumberGenerator>(_ on: Bool, using generator: inout Generator) {
         let playing = current
+        isShuffled = on
         if on {
             let played = songs[...index]
             let rest = songs[(index + 1)...].shuffled(using: &generator)
