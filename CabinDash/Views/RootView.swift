@@ -13,12 +13,24 @@ struct RootView: View {
 
         let onMusic = model.router.current == .music
         ZStack(alignment: .leading) {
-            // Behind Music the wallpaper is blurred and darkened, so the music is what stands out.
             RibbonWallpaper(wallpaper: model.prefs.wallpaper)
-                .blur(radius: onMusic ? 30 : 0, opaque: true)
-                .overlay(Color.black.opacity(onMusic ? 0.6 : 0))
-                .animation(.easeOut(duration: 0.25), value: onMusic)
                 .ignoresSafeArea()
+
+            // Behind Music the wallpaper is blurred and darkened, so the music is what stands out. The blur is iOS's own
+            // frosted glass (a material, as in Control Center): SwiftUI's blur filter on the drawn wallpaper came out in
+            // jagged, stepped bands on the phone.
+            Group {
+                if onMusic {
+                    Rectangle()
+                        .fill(.thickMaterial)
+                        .overlay(Color.black.opacity(0.35))
+                        .environment(\.colorScheme, .dark)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeOut(duration: 0.25), value: onMusic)
 
             ZStack {
                 screenView(model.router.current)
