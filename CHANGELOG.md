@@ -21,6 +21,9 @@ before it. The details, including what was and was not checked, are in `docs/AUD
   after it (`cabindash-beta-2.2`); this changelog and the README's "Versions" section.
 - Every IPA is also published as a GitHub release (Code > Releases) with these notes, so it no longer disappears after
   7 days.
+- The next-turn and now-playing bars moved from the top right to the bottom right of every screen, so each screen's own
+  controls start at the top (on Music, the section tabs line up with the top of the dock).
+- Music's section tabs light up in Spotify's green instead of orange.
 
 ## Beta 2.1 (run 21, 29 Oct 2026, `926f5ea`)
 

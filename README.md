@@ -11,7 +11,7 @@ A frosted dock runs down the left edge and stays put on every screen: the time, 
 - **Settings.** Units, directions app, Spotify, theme and wallpaper, saved places.
 - **Other apps (optional, off by default).** Turn on **Show Other apps in the dock** in Settings and an Apps button appears. It lists the apps found on your iPhone, with each app's App Store icon; tapping one leaves Cabin Dash and opens it. iOS does not allow another app's screen inside Cabin Dash.
 
-The track that is playing and the next turn also show as thin bars at the top right of every screen that does not already show them.
+The track that is playing and the next turn also show as thin bars along the bottom right of every screen that does not already show them.
 
 **Not built yet:** Phone, Messages and Contacts as screens of their own (the Phone and Messages tiles on the Other apps screen hand off to the iPhone's own apps), spoken turn-by-turn directions, and car data. Spotify has no Browse tab or artist pages here. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; Phase 1 (the shell and Home) and Phase 2 (Music) are built; Phase 2's plan is `docs/superpowers/plans/2026-10-27-phase-2-music-library.md`.
 
@@ -229,7 +229,7 @@ Config/Info.plist      Location text, app links, orientations, Spotify Client ID
 CabinCore/             Logic with no UI: the screens and dock rules (Feature.swift), catalogue, App Store matching, shelf and Other apps rules, trip maths, route guidance, Spotify sign-in and parsing, preferences, tests
 CabinDash/             The app itself
   Model/               Shared state: AppModel (holds the Router), location, route, Spotify, toasts
-  Views/Shell/         Dock (StatusRail), the bars on top (Strips), Other apps screen, wallpaper
+  Views/Shell/         Dock (StatusRail), the bars along the bottom (Strips), Other apps screen, wallpaper
   Views/Dashboard/     Home widgets
   Views/Map/           Map screen and place search
   Views/Music/         Music screen: Now Playing, Playlists, Liked, Search, Queue, device picker

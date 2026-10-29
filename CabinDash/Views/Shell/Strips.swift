@@ -28,7 +28,7 @@ struct StripStack: View {
 }
 
 extension AppModel {
-    /// The strips floating over the current screen. `StripStack` draws them, and screens that start below them ask here.
+    /// The strips floating over the bottom of the current screen. `StripStack` draws them, and screens that end above them ask here.
     var visibleStrips: [Strip] {
         Strips.visible(
             on: router.current,
@@ -38,16 +38,16 @@ extension AppModel {
     }
 }
 
-/// How far down a screen must start so its content sits below the strips instead of under them.
+/// How much room a screen keeps free along its bottom edge so its content ends above the strips instead of under them.
 /// The heights are those of the strips as drawn below; if a strip changes size, change them here too.
 enum StripClearance {
     private static let routeHeight: CGFloat = 56
     private static let musicHeight: CGFloat = 52
     private static let spacing: CGFloat = 8
 
-    /// The top padding for a screen: the usual edge when nothing floats there, otherwise room for the strips and a gap under them.
-    static func top(for strips: [Strip]) -> CGFloat {
-        guard !strips.isEmpty else { return CarLayout.edge }
+    /// The room the strips take, with the edge below them and a gap above them. Zero when nothing floats there.
+    static func reserve(for strips: [Strip]) -> CGFloat {
+        guard !strips.isEmpty else { return 0 }
         let heights = strips.reduce(CGFloat(0)) { total, strip in
             switch strip {
             case .route: return total + routeHeight
@@ -55,6 +55,11 @@ enum StripClearance {
             }
         }
         return CarLayout.edge + heights + spacing * CGFloat(strips.count - 1) + spacing
+    }
+
+    /// The bottom padding for a screen: the usual edge when nothing floats there, otherwise room for the strips.
+    static func bottom(for strips: [Strip]) -> CGFloat {
+        max(CarLayout.edge, reserve(for: strips))
     }
 }
 

@@ -43,7 +43,8 @@ struct MapScreen: View {
                 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.trailing, CarLayout.edge)
-                .padding(.bottom, CarLayout.edge)
+                // The playing song floats along the bottom right; the speed and re-centre buttons sit just above it.
+                .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
             }
         }
         .sheet(isPresented: $searching) {

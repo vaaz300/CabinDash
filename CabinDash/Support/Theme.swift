@@ -10,6 +10,9 @@ enum Theme {
     static let base = Color(light: 0xEEF0F6, dark: 0x05060B)
     /// The drawn route on the map.
     static let route = Color(light: 0x0A5CFF, dark: 0x4C9AFF)
+    /// Spotify's green (#1ED760, from Spotify's brand guidelines), for Music, which is always drawn on dark.
+    /// Text on it is black, as Spotify does.
+    static let spotifyGreen = Color(hex: 0x1ED760)
 }
 
 /// Sizes shared by the rail and the screens beside it, so nothing is hidden under the rail.

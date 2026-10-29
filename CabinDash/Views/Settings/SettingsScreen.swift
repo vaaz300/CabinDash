@@ -205,9 +205,9 @@ struct SettingsScreen: View {
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .padding(.leading, CarLayout.railReserve)
         .padding(.trailing, CarLayout.edge)
-        // Start below the now-playing and route bars that float at the top right, and leave the usual margin at the bottom.
-        .padding(.top, StripClearance.top(for: model.visibleStrips))
-        .padding(.bottom, CarLayout.edge)
+        // The now-playing and route bars float along the bottom right. End above them, and keep the usual margin at the top.
+        .padding(.top, CarLayout.edge)
+        .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
         .sheet(isPresented: $showPicker) {
             PickerSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)

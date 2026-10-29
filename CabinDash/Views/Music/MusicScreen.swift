@@ -42,9 +42,9 @@ struct MusicScreen: View {
         .environment(\.colorScheme, .dark)
         .padding(.leading, CarLayout.railReserve)
         .padding(.trailing, CarLayout.edge)
-        .padding(.bottom, CarLayout.edge)
-        // The route banner floats over the top right of every screen but the Map. Start below it.
-        .padding(.top, StripClearance.top(for: model.visibleStrips))
+        .padding(.top, CarLayout.edge)
+        // The next turn and the playing song float along the bottom right of every screen. End above them.
+        .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
         .sheet(isPresented: $library.devicePickerPresented) {
             DeviceSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
@@ -153,10 +153,11 @@ private struct SectionPill: View {
             Label(section.title, systemImage: section.symbol)
                 .font(.system(size: 16, weight: .semibold))
                 .lineLimit(1)
-                .foregroundStyle(selected ? onAccent : Color.primary)
+                .foregroundStyle(selected ? Color.black : Color.primary)
                 .padding(.horizontal, 18)
                 .frame(maxWidth: expands ? CGFloat.infinity : nil, minHeight: 46)
-                .background(selected ? Theme.accent : Color.primary.opacity(0.10), in: Capsule())
+                // The chosen section is lit in Spotify's green, with black text, as in Spotify itself.
+                .background(selected ? Theme.spotifyGreen : Color.primary.opacity(0.10), in: Capsule())
         }
         .buttonStyle(PressScaleStyle(scale: 0.96))
         .accessibilityAddTraits(selected ? [.isSelected] : [])
