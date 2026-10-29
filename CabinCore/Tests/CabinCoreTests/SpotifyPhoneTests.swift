@@ -224,32 +224,52 @@ private let phoneName = "Evan's iPhone"
         #expect(plan.handOverURI == "spotify:track:t")
     }
 
-    @Test func aLikedSongPlaysLikedSongsFromThatSong() throws {
+    // Your test: skipping a Liked song played Spotify's own picks, so the Spotify app did not play Liked Songs as a list.
+    // Liked Songs has two addresses; both are tried, and if neither is accepted Cabin Dash plays the list itself.
+
+    @Test func aLikedSongTriesBothLikedSongsAddressesAndKeepsTheListAsTheLastResort() throws {
         let plan = try #require(SpotifyPhone.plan(
             for: .uris(["spotify:track:t", "spotify:track:u"]), shuffled: false, index: 7, likedCollection: "spotify:user:evan:collection"
         ))
         #expect(plan.start == .item(context: "spotify:user:evan:collection", index: 7, song: "spotify:track:t"))
+        #expect(plan.otherContexts == ["spotify:collection:tracks"])
+        #expect(plan.songs == ["spotify:track:t", "spotify:track:u"])
         #expect(plan.handOverURI == "spotify:track:t")
     }
 
-    @Test func aLikedSongWithoutTheCollectionPlaysAlone() throws {
+    @Test func withoutTheAccountsAddressLikedSongsGeneralAddressIsTried() throws {
         let plan = try #require(SpotifyPhone.plan(for: .uris(["spotify:track:t", "spotify:track:u"]), shuffled: false, index: 7, likedCollection: nil))
+        #expect(plan.start == .item(context: SpotifyPhone.likedSongsAddress, index: 7, song: "spotify:track:t"))
+        #expect(plan.otherContexts.isEmpty)
+        #expect(plan.songs == ["spotify:track:t", "spotify:track:u"])
+    }
+
+    @Test func aListWithoutAKnownPlaceIsPlayedByCabinDashItself() throws {
+        let plan = try #require(SpotifyPhone.plan(for: .uris(["spotify:track:t", "spotify:track:u"]), shuffled: false, index: nil, likedCollection: nil))
         #expect(plan.start == .uri("spotify:track:t"))
-        #expect(plan.afterHandOver == nil)
+        #expect(plan.songs == ["spotify:track:t", "spotify:track:u"])
     }
 
     @Test func aSingleSongPlaysAlone() throws {
         let plan = try #require(SpotifyPhone.plan(for: .uris(["spotify:track:t"]), shuffled: false, index: nil, likedCollection: nil))
         #expect(plan.start == .uri("spotify:track:t"))
         #expect(plan.shuffle == nil)
+        #expect(plan.songs.isEmpty)
+    }
+
+    @Test func playlistsAndAlbumsNeedNoOtherAddressOrList() throws {
+        let plan = try #require(SpotifyPhone.plan(for: .context(uri: "spotify:playlist:p", startAtURI: "spotify:track:t"), shuffled: false, index: 2, likedCollection: nil))
+        #expect(plan.otherContexts.isEmpty)
+        #expect(plan.songs.isEmpty)
     }
 
     @Test func nothingToPlayIsNoPlan() {
         #expect(SpotifyPhone.plan(for: .uris([]), shuffled: false, index: nil, likedCollection: nil) == nil)
     }
 
-    @Test func likedSongsHaveTheirOwnAddress() {
+    @Test func likedSongsHaveTheirOwnAddresses() {
         #expect(SpotifyPhone.likedCollectionURI(userID: "evan") == "spotify:user:evan:collection")
+        #expect(SpotifyPhone.likedSongsAddress == "spotify:collection:tracks")
     }
 }
 
@@ -286,5 +306,96 @@ private let phoneName = "Evan's iPhone"
         let json = #"{ "device": { "name": "Evan's iPhone", "type": "Smartphone" }, "is_playing": true, "item": { "name": "Song", "uri": "spotify:track:t" } }"#
         let playing = try #require(SpotifyPlayback.parse(Data(json.utf8)))
         #expect(playing.deviceType == "Smartphone")
+    }
+}
+
+/// A list Cabin Dash plays itself, one song after another, when the Spotify app will not play it as a whole. Cabin Dash
+/// watches the Spotify app: when it moves past the run's song to one of its own picks, the run's next song is played.
+@Suite struct SongRunTests {
+    private let a = "spotify:track:a", b = "spotify:track:b", c = "spotify:track:c"
+
+    @Test func aRunNeedsASongToStartFrom() {
+        #expect(SongRun(songs: [], start: 0) == nil)
+        #expect(SongRun(songs: [a], start: 3) == nil)
+    }
+
+    @Test func itStartsAtTheGivenSong() throws {
+        let run = try #require(SongRun(songs: [a, b, c], start: 1))
+        #expect(run.current == b)
+    }
+
+    @Test func stayingOnTheSongChangesNothing() throws {
+        var run = try #require(SongRun(songs: [a, b, c]))
+        #expect(run.spotifyMoved(to: a) == .keep)
+        #expect(run.current == a)
+    }
+
+    @Test func movingToAnotherSongOfTheRunIsFollowed() throws {
+        var run = try #require(SongRun(songs: [a, b, c]))
+        #expect(run.spotifyMoved(to: c) == .keep)
+        #expect(run.current == c)
+    }
+
+    @Test func whenSpotifyMovesOnToItsOwnPickTheNextSongOfTheRunPlays() throws {
+        var run = try #require(SongRun(songs: [a, b, c]))
+        #expect(run.spotifyMoved(to: "spotify:track:radio") == .play(b))
+        #expect(run.current == b)
+    }
+
+    @Test func pastTheLastSongTheRunEnds() throws {
+        var run = try #require(SongRun(songs: [a, b], start: 1))
+        #expect(run.spotifyMoved(to: "spotify:track:radio") == .stop)
+    }
+
+    @Test func repeatAllGoesBackToTheFirstSong() throws {
+        var run = try #require(SongRun(songs: [a, b], start: 1))
+        run.repeatsAll = true
+        #expect(run.spotifyMoved(to: "spotify:track:radio") == .play(a))
+        #expect(run.advance() == b)
+    }
+
+    @Test func nextGoesThroughTheRunAndEndsAfterTheLastSong() throws {
+        var run = try #require(SongRun(songs: [a, b]))
+        #expect(run.advance() == b)
+        #expect(run.advance() == nil)
+        #expect(run.current == b)
+    }
+
+    @Test func previousRestartsASongThatHasPlayedForMoreThanThreeSeconds() throws {
+        var run = try #require(SongRun(songs: [a, b], start: 1))
+        #expect(run.back(position: 12) == .restart)
+        #expect(run.current == b)
+    }
+
+    @Test func previousEarlyInASongGoesToTheOneBefore() throws {
+        var run = try #require(SongRun(songs: [a, b], start: 1))
+        #expect(run.back(position: 1) == .play(a))
+        #expect(run.current == a)
+    }
+
+    @Test func previousOnTheFirstSongRestartsIt() throws {
+        var run = try #require(SongRun(songs: [a, b]))
+        #expect(run.back(position: 1) == .restart)
+    }
+
+    @Test func shufflingKeepsWhatHasPlayedAndMixesTheRest() throws {
+        let songs = (0..<30).map { "spotify:track:\($0)" }
+        var run = try #require(SongRun(songs: songs, start: 4))
+        run.shuffle(true)
+        #expect(run.current == songs[4])
+        #expect(Array(run.songs.prefix(5)) == Array(songs.prefix(5)))
+        #expect(Set(run.songs) == Set(songs))
+        #expect(run.songs.count == songs.count)
+    }
+
+    @Test func unshufflingPutsTheListBackInOrderFromTheCurrentSong() throws {
+        let songs = (0..<30).map { "spotify:track:\($0)" }
+        var run = try #require(SongRun(songs: songs, start: 4))
+        run.shuffle(true)
+        _ = run.advance()
+        let playing = run.current
+        run.shuffle(false)
+        #expect(run.songs == songs)
+        #expect(run.current == playing)
     }
 }
