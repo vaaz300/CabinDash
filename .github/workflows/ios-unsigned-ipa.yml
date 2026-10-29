@@ -9,6 +9,10 @@ name: Unsigned IPA (manual)
 # Versions: every IPA is a beta numbered from this workflow's run number (run 21 is beta 2.1, run 22 is beta 2.2), with
 # the run number as its build number. For a full release, type its version (for example 1.0) into "release_version" when
 # starting the run. The version is written into the app (Settings > About) and the file name. See CHANGELOG.md.
+#
+# Each IPA is also published as a GitHub release (Code > Releases), so it is kept after the 7-day artifact expires:
+# a pre-release tagged beta-2.2 for a beta, a release tagged v1.0 for a full release. Its notes are the "Next" section of
+# CHANGELOG.md. This is why the job may write to the repository: it creates the tag and the release, nothing else.
 
 on:
   workflow_dispatch:
@@ -25,6 +29,9 @@ jobs:
   unsigned-ipa:
     name: Archive without signing
     runs-on: macos-26
+    permissions:
+      # Creates the release's tag and the release with the .ipa attached.
+      contents: write
     timeout-minutes: 40
     defaults:
       run:
@@ -56,6 +63,17 @@ jobs:
           RELEASE_VERSION: ${{ inputs.release_version }}
         # A release version that is not numbers and dots stops the run here (the script exits 1, and bash's pipefail keeps it).
         run: python3 scripts/ci/app_version.py "$RUN_NUMBER" "$RELEASE_VERSION" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Check a full release's version is not taken
+        if: ${{ steps.version.outputs.channel == 'Release' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$APP_TAG" >/dev/null 2>&1; then
+            echo "::error title=Release exists::${APP_TAG} has already been released. Run again with another release_version."
+            exit 1
+          fi
 
       - name: Archive for iOS devices without signing
         env:
@@ -119,6 +137,32 @@ jobs:
           path: ci-artifacts/CabinDash-${{ steps.version.outputs.slug }}.ipa
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish it as a GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_TAG: ${{ steps.version.outputs.tag }}
+          APP_LABEL: ${{ steps.version.outputs.label }}
+          APP_BUILD: ${{ steps.version.outputs.build }}
+          APP_SLUG: ${{ steps.version.outputs.slug }}
+          APP_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          ipa="ci-artifacts/CabinDash-${APP_SLUG}.ipa"
+          python3 scripts/ci/release_notes.py CHANGELOG.md "$APP_LABEL" "$APP_BUILD" "$GITHUB_SHA" > ci-artifacts/release-notes.md
+          if gh release view "$APP_TAG" >/dev/null 2>&1; then
+            # Re-running a run keeps its number, so its release exists already: replace the file in it.
+            gh release upload "$APP_TAG" "$ipa" --clobber
+          else
+            kind=(--latest)
+            if [ "$APP_PRERELEASE" = "true" ]; then kind=(--prerelease); fi
+            gh release create "$APP_TAG" "$ipa" \
+              --target "$GITHUB_SHA" \
+              --title "Cabin Dash ${APP_LABEL} (build ${APP_BUILD})" \
+              --notes-file ci-artifacts/release-notes.md \
+              "${kind[@]}"
+          fi
+          url=$(gh release view "$APP_TAG" --json url --jq .url)
+          echo "Published at ${url}. It is kept until you delete it (Code > Releases)." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload logs
         if: ${{ always() }}

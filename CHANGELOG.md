@@ -7,7 +7,9 @@ typing its version (for example 1.0) into the workflow's **release_version** box
 Beta numbers are not release numbers, so the first full release can still be 1.0. How it works: README, "Versions".
 
 From Beta 2.2 on, the version is written into the app (**Settings > About**: "Beta 2.2 (build 22)"), into the IPA's file
-name (`CabinDash-beta-2.2.ipa`) and into the run's summary on GitHub. Betas 0.1 to 2.1 were numbered afterwards, from
+name (`CabinDash-beta-2.2.ipa`) and into the run's summary on GitHub, and each IPA is published as a GitHub release
+(**Code > Releases**, tagged `beta-2.2`) that is kept until it is deleted. The "Next beta" section below is what the next
+IPA will contain and becomes its release notes; after the run it is renamed after the beta it became. Betas 0.1 to 2.1 were numbered afterwards, from
 their runs; inside the app they all say "1.0 (1)".
 
 Each entry: what changed for you, the run and the commit it was built from. "Rebuilt" means the same code as the beta
@@ -17,6 +19,8 @@ before it. The details, including what was and was not checked, are in `docs/AUD
 
 - Version numbers: Settings > About says which beta (or release) and build this is; the IPA file and the artifact are named
   after it (`cabindash-beta-2.2`); this changelog and the README's "Versions" section.
+- Every IPA is also published as a GitHub release (Code > Releases) with these notes, so it no longer disappears after
+  7 days.
 
 ## Beta 2.1 (run 21, 29 Oct 2026, `926f5ea`)
 

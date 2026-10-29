@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO / "scripts"))
 
 import add_spotify_icon  # noqa: E402
 import app_version  # noqa: E402
+import release_notes  # noqa: E402
 import check_repo  # noqa: E402
 import check_tests  # noqa: E402
 import pick_package_scheme  # noqa: E402
@@ -564,7 +565,10 @@ class AppVersionTests(unittest.TestCase):
 
     def test_build_21_is_beta_2_1(self):
         info = app_version.work_out(21)
-        self.assertEqual(info, {"version": "2.1", "build": "21", "channel": "Beta", "label": "Beta 2.1", "slug": "beta-2.1"})
+        self.assertEqual(info, {
+            "version": "2.1", "build": "21", "channel": "Beta", "label": "Beta 2.1", "slug": "beta-2.1",
+            "tag": "beta-2.1", "prerelease": "true",
+        })
 
     def test_every_tenth_build_starts_a_new_whole_number(self):
         self.assertEqual(app_version.work_out(10)["version"], "1.0")
@@ -573,7 +577,10 @@ class AppVersionTests(unittest.TestCase):
 
     def test_a_full_release_uses_the_number_given_and_keeps_the_build_number(self):
         info = app_version.work_out(35, "1.0")
-        self.assertEqual(info, {"version": "1.0", "build": "35", "channel": "Release", "label": "1.0", "slug": "1.0"})
+        self.assertEqual(info, {
+            "version": "1.0", "build": "35", "channel": "Release", "label": "1.0", "slug": "1.0",
+            "tag": "v1.0", "prerelease": "false",
+        })
 
     def test_spaces_around_a_release_number_are_ignored(self):
         self.assertEqual(app_version.work_out(35, " 1.2.3 ")["version"], "1.2.3")
@@ -594,7 +601,7 @@ class AppVersionTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(
             out.getvalue().splitlines(),
-            ["version=2.2", "build=22", "channel=Beta", "label=Beta 2.2", "slug=beta-2.2"],
+            ["version=2.2", "build=22", "channel=Beta", "label=Beta 2.2", "slug=beta-2.2", "tag=beta-2.2", "prerelease=true"],
         )
 
     def test_main_explains_a_bad_release_number(self):
@@ -603,6 +610,49 @@ class AppVersionTests(unittest.TestCase):
             code = app_version.main(["app_version.py", "22", "first"])
         self.assertEqual(code, 1)
         self.assertIn("first", err.getvalue())
+
+
+class ReleaseNotesTests(unittest.TestCase):
+    """scripts/ci/release_notes.py writes a GitHub release's notes from the "Next" section of CHANGELOG.md."""
+
+    CHANGELOG = """# Changelog
+
+Intro text.
+
+## Next beta (2.2, from the next IPA run)
+
+- Version numbers in Settings.
+- Releases on GitHub.
+
+## Beta 2.1 (run 21, 29 Oct 2026, `926f5ea`)
+
+- A smooth background.
+"""
+
+    def test_the_next_section_becomes_what_changed(self):
+        text = release_notes.notes(self.CHANGELOG, "Beta 2.2", "22", "abcdef1234567890")
+        self.assertIn("Cabin Dash Beta 2.2 (build 22), built from commit abcdef1.", text)
+        self.assertIn("- Version numbers in Settings.\n- Releases on GitHub.", text)
+        self.assertNotIn("A smooth background", text)
+        self.assertIn("CHANGELOG.md", text)
+
+    def test_without_a_next_section_the_changelog_is_pointed_to(self):
+        text = release_notes.notes("# Changelog\n\n## Beta 2.1\n\n- Old.\n", "Beta 2.2", "22", "abcdef1")
+        self.assertIn("See CHANGELOG.md", text)
+        self.assertNotIn("Old.", text)
+
+    def test_it_says_the_file_is_unsigned(self):
+        self.assertIn("unsigned", release_notes.notes(self.CHANGELOG, "1.0", "35", "abcdef1").lower())
+
+    def test_main_reads_the_changelog_file(self):
+        path = pathlib.Path(tempfile.mkdtemp()) / "CHANGELOG.md"
+        self.addCleanup(shutil.rmtree, path.parent, True)
+        path.write_text(self.CHANGELOG)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = release_notes.main(["release_notes.py", str(path), "Beta 2.2", "22", "abcdef1"])
+        self.assertEqual(code, 0)
+        self.assertIn("Releases on GitHub", out.getvalue())
 
 
 class PackageSchemeTests(unittest.TestCase):

@@ -26,12 +26,18 @@ run number, and a run that fails still uses its number.
 * **Where to see it:** Settings > About ("Beta 2.2 (build 22)"), the IPA's file name (`CabinDash-beta-2.2.ipa`, in the
   artifact **cabindash-beta-2.2**), and the run's summary on GitHub. Builds made in Xcode or on the simulator say
   "Development build".
-* **What changed in each:** [CHANGELOG.md](CHANGELOG.md), from Beta 0.1 on. Betas 0.1 to 2.1 were numbered afterwards
+* **Kept for good:** every IPA from Beta 2.2 on is also published under **Code > Releases**: a pre-release tagged
+  `beta-2.2` (a full release is tagged `v1.0`) with the `.ipa` attached and what changed as its notes. Artifacts expire
+  after 7 days; releases stay until you delete them. This repository is public, so its releases are too, like the code;
+  the IPA is unsigned and holds no secrets (the Spotify Client ID is a public identifier).
+* **What changed in each:** [CHANGELOG.md](CHANGELOG.md), from Beta 0.1 on. Its "Next beta" section is what the next IPA
+  will contain and becomes that release's notes; after the run it is renamed after the beta it became. Betas 0.1 to 2.1 were numbered afterwards
   from their runs; inside the app they say "1.0 (1)".
 * **A full release:** when you are happy, run **Actions > Unsigned IPA (manual) > Run workflow** and type the release's
   version (for example 1.0) into **release_version**. That build says "1.0 (build N)". Leave the box empty for a beta.
-* **How:** `scripts/ci/app_version.py` turns the run number into the version (tested with the other script tests), the
-  workflow passes it to Xcode, and `AppVersion` in CabinCore words it for Settings (unit tests).
+* **How:** `scripts/ci/app_version.py` turns the run number into the version and tag, and `scripts/ci/release_notes.py`
+  takes the notes from the changelog (both tested with the other script tests); the workflow passes the version to Xcode
+  and publishes the release with GitHub's `gh` tool; `AppVersion` in CabinCore words it for Settings (unit tests).
 
 ## Where things stand
 

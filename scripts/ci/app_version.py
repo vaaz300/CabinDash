@@ -7,8 +7,9 @@ into the workflow's "release_version" box; it keeps the run number as its build 
 
     python3 scripts/ci/app_version.py RUN_NUMBER [RELEASE_VERSION]
 
-prints key=value lines for $GITHUB_OUTPUT: version, build, channel (Beta or Release), label (as people read it) and slug
-(for file names). Standard library only. See CHANGELOG.md and README.md ("Versions").
+prints key=value lines for $GITHUB_OUTPUT: version, build, channel (Beta or Release), label (as people read it), slug
+(for file names), tag (the GitHub release's tag: beta-2.1, or v1.0 for a full release) and prerelease (true for a beta).
+Standard library only. See CHANGELOG.md and README.md ("Versions").
 """
 import re
 import sys
@@ -25,9 +26,15 @@ def work_out(run_number: int, release: str = "") -> dict:
     if release:
         if not RELEASE.match(release):
             raise ValueError(f"A release version is numbers separated by dots, such as 1.0; \"{release}\" is not.")
-        return {"version": release, "build": build, "channel": "Release", "label": release, "slug": release}
+        return {
+            "version": release, "build": build, "channel": "Release", "label": release, "slug": release,
+            "tag": f"v{release}", "prerelease": "false",
+        }
     version = f"{run_number // 10}.{run_number % 10}"
-    return {"version": version, "build": build, "channel": "Beta", "label": f"Beta {version}", "slug": f"beta-{version}"}
+    return {
+        "version": version, "build": build, "channel": "Beta", "label": f"Beta {version}", "slug": f"beta-{version}",
+        "tag": f"beta-{version}", "prerelease": "true",
+    }
 
 
 def main(argv) -> int:
@@ -39,7 +46,7 @@ def main(argv) -> int:
     except ValueError as error:
         print(error, file=sys.stderr)
         return 1
-    for key in ("version", "build", "channel", "label", "slug"):
+    for key in ("version", "build", "channel", "label", "slug", "tag", "prerelease"):
         print(f"{key}={info[key]}")
     return 0
 
