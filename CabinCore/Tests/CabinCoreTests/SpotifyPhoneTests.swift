@@ -322,6 +322,7 @@ private let phoneName = "Evan's iPhone"
     @Test func itStartsAtTheGivenSong() throws {
         let run = try #require(SongRun(songs: [a, b, c], start: 1))
         #expect(run.current == b)
+        #expect(!run.isShuffled)
     }
 
     @Test func stayingOnTheSongChangesNothing() throws {
@@ -382,6 +383,9 @@ private let phoneName = "Evan's iPhone"
         let songs = (0..<30).map { "spotify:track:\($0)" }
         var run = try #require(SongRun(songs: songs, start: 4))
         run.shuffle(true)
+        // Your retest: the shuffle button lit, then went dark on the next song. In Liked Songs played by Cabin Dash itself,
+        // shuffle belongs to the list, which says so, rather than to the Spotify app.
+        #expect(run.isShuffled)
         #expect(run.current == songs[4])
         #expect(Array(run.songs.prefix(5)) == Array(songs.prefix(5)))
         #expect(Set(run.songs) == Set(songs))
@@ -395,6 +399,7 @@ private let phoneName = "Evan's iPhone"
         _ = run.advance()
         let playing = run.current
         run.shuffle(false)
+        #expect(!run.isShuffled)
         #expect(run.songs == songs)
         #expect(run.current == playing)
     }
