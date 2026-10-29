@@ -4,7 +4,9 @@ import CabinCore
 
 /// Colours used across the app. Each pair is (day, night) and follows the Day / Night / Auto setting.
 enum Theme {
-    static let accent = Color(light: 0xC93400, dark: 0xFF9F0A)
+    /// Spotify's green at night (#1ED760, text on it black); a deeper green by day, so it still reads on the light background
+    /// and white text on it stays legible (contrast about 5.5:1).
+    static let accent = Color(light: 0x0E7A34, dark: 0x1ED760)
     static let good = Color(light: 0x248A3D, dark: 0x30D158)
     static let bad = Color(light: 0xD70015, dark: 0xFF453A)
     static let base = Color(light: 0xEEF0F6, dark: 0x05060B)

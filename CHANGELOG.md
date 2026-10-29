@@ -23,7 +23,8 @@ before it. The details, including what was and was not checked, are in `docs/AUD
   7 days.
 - The next-turn and now-playing bars moved from the top right to the bottom right of every screen, so each screen's own
   controls start at the top (on Music, the section tabs line up with the top of the dock).
-- Music's section tabs light up in Spotify's green instead of orange.
+- Green instead of orange everywhere the app highlights something: Music's tabs, shuffle and repeat when on, the like
+  tick, buttons, the Drive gauge and toasts. At night it is Spotify's own green; by day a deeper green that reads on light.
 
 ## Beta 2.1 (run 21, 29 Oct 2026, `926f5ea`)
 
