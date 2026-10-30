@@ -15,7 +15,11 @@ their runs; inside the app they all say "1.0 (1)".
 Each entry: what changed for you, the run and the commit it was built from. "Rebuilt" means the same code as the beta
 before it. The details, including what was and was not checked, are in `docs/AUDIT.md`.
 
-## Next beta (2.4, from the next IPA run)
+## Next beta (2.5, from the next IPA run)
+
+- Nothing yet.
+
+## Beta 2.4 (run 24, 30 Oct 2026, `7159691`)
 
 - On the Map the playing song sits at the top right, in the open space beside the route panel and level with its top,
   instead of in the bar along the bottom. The panel keeps the full height again, so its cards are no longer squeezed.
