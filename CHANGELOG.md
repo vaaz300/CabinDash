@@ -18,8 +18,8 @@ before it. The details, including what was and was not checked, are in `docs/AUD
 ## Next beta (2.3, from the next IPA run)
 
 - The next-turn and now-playing strips share one bar along the bottom, as wide as the screen's content (side by side
-  when both show), so its edges line up with Music's tabs and artwork. The Map's route panel ends above it, so the music
-  strip no longer covers its buttons. Now Playing tightens (no album line, shorter control rows) when the bar leaves it
+  when both show), so its edges line up with Music's tabs and artwork. On the Map the playing song sits at the top right instead,
+  in the open space beside the route panel, so the panel keeps the full height and its buttons are never covered. Now Playing tightens (no album line, shorter control rows) when the bar leaves it
   less height, so its controls end level with the artwork.
 
 ## Beta 2.2 (run 22, 29 Oct 2026, `3c3b8d0`)

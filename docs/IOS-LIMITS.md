@@ -74,7 +74,7 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 
 The app is **landscape only** (both directions; upside-down is not offered, which is normal for iPhones). A frosted dock runs down the left edge and is the same on every screen: the time, Wi-Fi or cellular, a GPS dot, the battery, then buttons for Home, Map, Music and Drive (and Apps, if Other apps is switched on in Settings), with Settings at the bottom. The buttons are sized to fit the screen height and never drop below 30 points; with Apps on, a small iPhone gets small buttons. The rest of the screen is the feature you are on. Content stays inside the safe area, so the Dynamic Island and rounded corners should not cover it. The Map screen is the one exception: the map itself runs under them.
 
-The music and next-turn strips sit in one bar along the bottom of every screen except the one that already shows that information, as wide as the screen's content and split in two when both show. Each screen ends above the bar: on the Map, the place panel and the speed and re-centre buttons; on Music, Now Playing drops the album line and tightens its controls when the bar leaves it less height.
+The music and next-turn strips sit in one bar along the bottom of every screen except the one that already shows that information, as wide as the screen's content and split in two when both show. Each screen ends above the bar. The Map is the exception: there the playing song sits in the open space at the top right, level with the top of the route panel, so the panel keeps the full height. On Music, Now Playing drops the album line and tightens its controls when the bar leaves it less height.
 
 What it cannot copy from CarPlay:
 

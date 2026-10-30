@@ -4,10 +4,10 @@ import CabinCore
 /// The thin bars that follow the driver from screen to screen: the next turn while a route is being followed,
 /// and the playing track while Spotify plays. Which of them show on which screen is decided by `Strips.visible` in CabinCore.
 struct StripStack: View {
-    @Environment(AppModel.self) private var model
+    /// The strips to draw, in order.
+    let strips: [Strip]
 
     var body: some View {
-        let strips = model.visibleStrips
 
         // One bar along the bottom, as wide as the screen's content, so its edges line up with what is above it.
         // With both strips showing they share it half and half, the next turn first.
@@ -38,6 +38,12 @@ extension AppModel {
             musicActive: spotify.phase == .signedIn && spotify.nowPlaying != nil,
             routeGuiding: route.phase == .guiding
         )
+    }
+
+    /// The strips in the bar along the bottom. The Map has its own place for them, in the open space at the top right
+    /// beside its panel, so its route panel can use the full height; every other screen ends above this bar.
+    var bottomStrips: [Strip] {
+        router.current == .map ? [] : visibleStrips
     }
 }
 

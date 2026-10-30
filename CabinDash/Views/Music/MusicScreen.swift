@@ -44,7 +44,7 @@ struct MusicScreen: View {
         .padding(.trailing, CarLayout.edge)
         .padding(.top, CarLayout.edge)
         // The next turn and the playing song float along the bottom right of every screen. End above them.
-        .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
+        .padding(.bottom, StripClearance.bottom(for: model.bottomStrips))
         .sheet(isPresented: $library.devicePickerPresented) {
             DeviceSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)

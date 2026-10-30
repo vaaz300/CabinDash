@@ -45,7 +45,7 @@ struct RootView: View {
         // The next turn and the playing song sit in one bar along the bottom, as wide as the screens' content, so the top
         // of every screen stays its own (on Music, the section bar lines up with the top of the rail).
         .overlay(alignment: .bottom) {
-            StripStack()
+            StripStack(strips: model.bottomStrips)
                 .padding(.leading, CarLayout.railReserve)
                 .padding(.trailing, CarLayout.edge)
                 .padding(.bottom, CarLayout.edge)
@@ -53,7 +53,7 @@ struct RootView: View {
         .overlay(alignment: .bottom) {
             // Toasts appear above the strips rather than on top of them.
             ToastOverlay()
-                .padding(.bottom, max(10, StripClearance.reserve(for: model.visibleStrips)))
+                .padding(.bottom, max(10, StripClearance.reserve(for: model.bottomStrips)))
         }
         .sheet(isPresented: $model.pickerPresented) {
             PickerSheet()
@@ -127,14 +127,14 @@ struct RootView: View {
         case .drive:
             DriveView(landscape: true)
                 .padding(.leading, CarLayout.railReserve)
-                .padding(.bottom, StripClearance.reserve(for: model.visibleStrips))
+                .padding(.bottom, StripClearance.reserve(for: model.bottomStrips))
         case .settings:
             SettingsScreen()
         case .apps:
             OtherAppsScreen()
                 .padding(.leading, CarLayout.railReserve)
                 .padding(.trailing, CarLayout.edge)
-                .padding(.bottom, StripClearance.reserve(for: model.visibleStrips))
+                .padding(.bottom, StripClearance.reserve(for: model.bottomStrips))
         }
     }
 

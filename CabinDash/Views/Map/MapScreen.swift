@@ -21,16 +21,19 @@ struct MapScreen: View {
                 map(route)
                     .ignoresSafeArea()
 
-                HStack(spacing: 0) {
+                HStack(alignment: .top, spacing: 10) {
                     panel(route)
                         .frame(width: min(330, proxy.size.width * 0.42))
                         .frame(maxHeight: .infinity, alignment: .top)
-                    Spacer(minLength: 0)
+                    // The playing song sits in the open space at the top right, level with the top of the panel,
+                    // rather than in a bar along the bottom: the panel keeps the full height and the map stays clear.
+                    StripStack(strips: model.visibleStrips)
+                        .frame(maxWidth: 420)
+                        .frame(maxWidth: .infinity, alignment: .topTrailing)
                 }
                 .padding(.leading, CarLayout.railReserve)
-                .padding(.top, CarLayout.edge)
-                // The panel ends above the bar along the bottom, so the playing song never covers its buttons.
-                .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
+                .padding(.trailing, CarLayout.edge)
+                .padding(.vertical, CarLayout.edge)
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
@@ -45,8 +48,7 @@ struct MapScreen: View {
                 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.trailing, CarLayout.edge)
-                // The playing song sits in a bar along the bottom; the speed and re-centre buttons sit just above it.
-                .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
+                .padding(.bottom, CarLayout.edge)
             }
         }
         .sheet(isPresented: $searching) {

@@ -207,7 +207,7 @@ struct SettingsScreen: View {
         .padding(.trailing, CarLayout.edge)
         // The now-playing and route bars float along the bottom right. End above them, and keep the usual margin at the top.
         .padding(.top, CarLayout.edge)
-        .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
+        .padding(.bottom, StripClearance.bottom(for: model.bottomStrips))
         .sheet(isPresented: $showPicker) {
             PickerSheet()
                 .preferredColorScheme(model.prefs.theme.colorScheme)
