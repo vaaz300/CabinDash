@@ -79,6 +79,25 @@ Test Case '-[CabinCoreTests.X testY]' failed (0.001 seconds).
 
 
 class SummarizeTests(unittest.TestCase):
+    CRASH_LOG = "\n".join([
+        "\u25c7 Test run started.",
+        "\u25c7 Test sectionsAreAlphabeticalWithHashLast() started.",
+        "\u25c7 Test keepsDigitsAndALeadingPlus() started.",
+        "\u2714 Test keepsDigitsAndALeadingPlus() passed after 0.001 seconds.",
+        "Swift/ContiguousArrayBuffer.swift:691: Fatal error: Index out of range",
+        "error: Exited with unexpected signal code 5",
+    ])
+
+    def test_a_crash_is_reported_with_the_tests_that_were_running(self):
+        errors, _, _ = summarize_xcodebuild.parse(self.CRASH_LOG)
+        messages = [e["msg"] for e in errors]
+        self.assertIn("Crash: Fatal error: Index out of range (Swift/ContiguousArrayBuffer.swift:691)", messages)
+        self.assertIn("Tests still running when it stopped: sectionsAreAlphabeticalWithHashLast()", messages)
+
+    def test_no_crash_means_no_running_tests_report(self):
+        errors, _, _ = summarize_xcodebuild.parse("\u25c7 Test a() started.\n\u2714 Test a() passed after 0.1 seconds.")
+        self.assertFalse(any(e["msg"].startswith("Tests still running") for e in errors))
+
     def test_errors_are_found_and_deduplicated(self):
         errors, warnings, markers = summarize_xcodebuild.parse(BUILD_FAILED)
         messages = [e["msg"] for e in errors]

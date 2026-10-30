@@ -20,6 +20,12 @@ BARE_ERROR = re.compile(r"^(?:xcodebuild: )?(?:fatal )?error: (?P<msg>.+)$")
 LINKER = re.compile(r"^(?:ld|clang): (?:error: )?(?P<msg>.+)$")
 TESTING_ISSUE = re.compile(r"Test (?P<name>.+?) recorded an issue at (?P<file>[^:\n]+):(?P<line>\d+):(?P<col>\d+): (?P<msg>.+)$")
 FAILED_TEST_CASE = re.compile(r"^Test Case '(?P<name>.+)' failed")
+# A crash in a test process ("Swift/Array.swift:600: Fatal error: Index out of range"), and Swift Testing's per-test
+# lines, used to name the tests that were still running when it stopped. A crash ends the run before any result is
+# printed, so without these the only sign is "no tests were executed".
+FATAL = re.compile(r"(?:^|\s)(?:(?P<file>[^\s:]+\.swift):(?P<line>\d+): )?Fatal error: (?P<msg>.*)$")
+TEST_STARTED = re.compile(r"Test (?P<name>[^\s]+\(\)) started\.")
+TEST_FINISHED = re.compile(r"Test (?P<name>[^\s]+\(\)) (?:passed|failed|skipped)")
 MARKERS = ("** BUILD SUCCEEDED **", "** BUILD FAILED **", "** TEST SUCCEEDED **", "** TEST FAILED **")
 MAX_ANNOTATIONS = 10   # GitHub shows at most 10 error annotations per step
 MAX_WARNING_ANNOTATIONS = 10
@@ -30,8 +36,26 @@ def parse(text: str):
     errors, warnings, markers = [], [], []
     seen_errors, seen_warnings = set(), set()
     last_error = None
+    running: list = []
+    crashed = False
     for raw in text.splitlines():
         line = raw.strip()
+        started = TEST_STARTED.search(line)
+        if started:
+            running.append(started["name"])
+            continue
+        finished = TEST_FINISHED.search(line)
+        if finished and finished["name"] in running:
+            running.remove(finished["name"])
+        fatal = FATAL.search(line)
+        if fatal:
+            crashed = True
+            place = f" ({fatal['file']}:{fatal['line']})" if fatal["file"] else ""
+            msg = f"Crash: Fatal error: {fatal['msg'].strip()}{place}"
+            if (None, None, msg) not in seen_errors:
+                seen_errors.add((None, None, msg))
+                errors.append({"file": None, "line": None, "col": None, "msg": msg, "notes": []})
+            continue
         if line in MARKERS:
             markers.append(line)
             continue
@@ -91,6 +115,10 @@ def parse(text: str):
                 seen_errors.add(key)
                 errors.append(item)
             last_error = None
+    if crashed and running:
+        names = ", ".join(dict.fromkeys(running))
+        errors.insert(0, {"file": None, "line": None, "col": None,
+                          "msg": f"Tests still running when it stopped: {names}", "notes": []})
     return errors, warnings, markers
 
 
