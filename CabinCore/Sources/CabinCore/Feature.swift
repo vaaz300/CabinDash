@@ -50,16 +50,22 @@ public enum Feature: String, CaseIterable, Codable, Hashable, Sendable {
     }
 }
 
-/// What the rail shows. Fixed, so the driver always finds the same buttons in the same places.
+/// What the rail shows: pages of up to four buttons, swiped between, always in the same order so the driver finds the
+/// same button in the same place. The first page holds what is used while driving.
 public enum Dock {
-    /// The gear below the stack of buttons.
-    public static let footer: Feature = .settings
+    public static let perPage = 4
 
-    /// The stack, top to bottom. Apps appears only when the Other apps switch is on.
-    public static func features(showOtherApps: Bool) -> [Feature] {
-        var result: [Feature] = [.dashboard, .map, .music, .phone, .drive]
-        if showOtherApps { result.append(.apps) }
-        return result
+    /// Every button in order: Home, Map, Music, Phone, then Drive, Apps (only when the Other apps switch is on) and Settings.
+    public static func pages(showOtherApps: Bool) -> [[Feature]] {
+        var all: [Feature] = [.dashboard, .map, .music, .phone, .drive]
+        if showOtherApps { all.append(.apps) }
+        all.append(.settings)
+        return stride(from: 0, to: all.count, by: perPage).map { Array(all[$0..<min($0 + perPage, all.count)]) }
+    }
+
+    /// The page holding `feature`, or nil when it is not in the dock.
+    public static func page(of feature: Feature, showOtherApps: Bool) -> Int? {
+        pages(showOtherApps: showOtherApps).firstIndex { $0.contains(feature) }
     }
 
     public static func isAvailable(_ feature: Feature, showOtherApps: Bool) -> Bool {

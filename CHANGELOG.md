@@ -20,6 +20,8 @@ before it. The details, including what was and was not checked, are in `docs/AUD
 - Phone: a Phone button in the dock with Favourites, Recents (calls placed from Cabin Dash), Contacts with search, and a
   Keypad. iOS asks before each call and shows its own call screen. A call bar with the call's time shows on the other
   screens while a call is on. Contacts and the Keypad are hidden while driving unless Passenger mode is on.
+- The dock has two pages you swipe up and down, four buttons at most on each: Home, Map, Music and Phone, then Drive,
+  Apps (if on) and Settings. Dots under the buttons show the page; going to a screen turns the dock to its page.
 
 ## Beta 2.4 (run 24, 30 Oct 2026, `7159691`)
 

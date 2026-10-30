@@ -1,40 +1,92 @@
 import SwiftUI
 import CabinCore
 
-/// The tall frosted bar down the left edge: the time, the connection and battery, then the same buttons on every screen.
-/// Home, Map, Music and Drive (and Apps, if switched on) stack from the top; Settings sits at the bottom.
+/// The tall frosted bar down the left edge: the time, the connection and the battery, then Cabin Dash's screens in pages
+/// of four, swiped up and down. The first page is Home, Map, Music and Phone; the second Drive, Apps (if switched on) and
+/// Settings. Dots under the buttons show which page is up, and tapping a dot goes to its page.
 struct StatusRail: View {
     @Environment(AppModel.self) private var model
+    @State private var page: Int? = 0
 
     private let headerHeight: CGFloat = 84
-    /// Breathing room above the first button and below the gear.
+    private let dotsHeight: CGFloat = 26
+    /// Breathing room above the first button of a page.
     private let verticalPadding: CGFloat = 12
 
     var body: some View {
         GeometryReader { proxy in
-            let features = Dock.features(showOtherApps: model.prefs.showOtherApps)
-            let available = proxy.size.height - headerHeight - verticalPadding * 2
-            // The gear counts as a button for sizing, so everything fits whatever the screen height.
-            let size = DockMetrics.iconSize(availableHeight: Double(available), itemCount: features.count + 1)
+            let pages = Dock.pages(showOtherApps: model.prefs.showOtherApps)
+            let pageHeight = max(0, proxy.size.height - headerHeight - dotsHeight)
+            // Sized for a full page of four, so the buttons are the same size on every page.
+            let size = DockMetrics.iconSize(availableHeight: Double(pageHeight - verticalPadding * 2), itemCount: Dock.perPage)
             let gap = DockMetrics.gap(forIconSize: size)
 
             VStack(spacing: 0) {
                 StatusHeader()
                     .frame(height: headerHeight)
-                VStack(spacing: CGFloat(gap)) {
-                    ForEach(features, id: \.self) { feature in
-                        FeatureButton(feature: feature, size: CGFloat(size), gap: CGFloat(gap))
+
+                ScrollView(.vertical) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(pages.indices, id: \.self) { index in
+                            VStack(spacing: CGFloat(gap)) {
+                                ForEach(pages[index], id: \.self) { feature in
+                                    FeatureButton(feature: feature, size: CGFloat(size), gap: CGFloat(gap))
+                                }
+                            }
+                            .padding(.top, verticalPadding)
+                            .frame(width: CarLayout.railWidth, height: pageHeight, alignment: .top)
+                            .id(index)
+                        }
                     }
+                    .scrollTargetLayout()
                 }
-                .padding(.top, verticalPadding)
-                Spacer(minLength: 0)
-                FeatureButton(feature: Dock.footer, size: CGFloat(size), gap: CGFloat(gap))
-                    .padding(.bottom, verticalPadding)
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $page)
+                .scrollIndicators(.hidden)
+                .frame(height: pageHeight)
+
+                DockDots(count: pages.count, current: page ?? 0) { index in
+                    withAnimation(.easeOut(duration: 0.25)) { page = index }
+                }
+                .frame(height: dotsHeight)
             }
             .frame(width: CarLayout.railWidth, height: proxy.size.height)
             .railGlass(radius: 38)
         }
         .frame(width: CarLayout.railWidth)
+        // Going to a screen from elsewhere (a widget, a strip, Settings) turns the dock to the page with its button.
+        .onChange(of: model.router.current, initial: true) { _, feature in
+            if let target = Dock.page(of: feature, showOtherApps: model.prefs.showOtherApps), target != page {
+                withAnimation(.easeOut(duration: 0.25)) { page = target }
+            }
+        }
+    }
+}
+
+/// One dot per dock page, the current one bright. Each dot is a 44 pt target that turns to its page.
+private struct DockDots: View {
+    let count: Int
+    let current: Int
+    let select: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(0..<count, id: \.self) { index in
+                Button {
+                    select(index)
+                } label: {
+                    Circle()
+                        .fill(Color.primary.opacity(index == current ? 0.9 : 0.3))
+                        .frame(width: 7, height: 7)
+                        .frame(width: 22, height: 26)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Dock page \(index + 1) of \(count)")
+                .accessibilityAddTraits(index == current ? .isSelected : [])
+            }
+        }
+        .opacity(count > 1 ? 1 : 0)
     }
 }
 

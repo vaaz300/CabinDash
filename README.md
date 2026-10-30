@@ -2,7 +2,7 @@
 
 A self-contained driving screen for the iPhone, styled after CarPlay. It draws its own screens on the phone's display, so it works in a car with no CarPlay and no Wi-Fi hotspot. Put the phone in a mount, plug it in, and open it. Landscape only.
 
-A frosted dock runs down the left edge and stays put on every screen: the time, connection and battery, then **Home, Map, Music, Phone, Drive**, and a gear for **Settings**.
+A frosted dock runs down the left edge and stays put on every screen: the time, connection and battery, then Cabin Dash's screens in two pages you swipe up and down: **Home, Map, Music, Phone** on the first, **Drive** and **Settings** (and Apps, if you turn it on) on the second.
 
 - **Home.** Three live widgets: a map that follows you (with the next turn while you navigate), what Spotify is playing with previous, play/pause and next, and your speed with the trip so far. Tap a widget to open its full screen.
 - **Map.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
@@ -45,7 +45,7 @@ run number, and a run that fails still uses its number.
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 417 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 420 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |
@@ -185,7 +185,7 @@ Xcode 26.5 was picked because recent Xcode versions are the ones Apple accepts f
 
 **Opening apps.** Tapping tries the app's own link first, then its website, then its App Store page. If all three fail, a message says so.
 
-**The dock.** The same buttons on every screen: Home, Map, Music and Drive from the top, Settings at the bottom, and Apps after Drive if you turned on Other apps. The buttons shrink to fit short screens, but never below 30 points. The selected screen has a small bar under its button. The header shows the time, Wi-Fi or cellular, a GPS dot and the battery; iOS gives apps no signal-strength reading, so there are no signal bars. The navigation rules (what the dock shows, where a tap goes, which bars appear where) are plain code in `CabinCore/Sources/CabinCore/Feature.swift` and are unit tested.
+**The dock.** The same buttons on every screen, four to a page: Home, Map, Music and Phone, then (swipe up, or tap the second dot) Drive, Apps if you turned on Other apps, and Settings. Going to a screen from anywhere else turns the dock to its page. The buttons are sized for four and shrink to fit short screens, but never below 30 points. The selected screen has a small bar under its button. The header shows the time, Wi-Fi or cellular, a GPS dot and the battery; iOS gives apps no signal-strength reading, so there are no signal bars. The navigation rules (what the dock shows, where a tap goes, which bars appear where) are plain code in `CabinCore/Sources/CabinCore/Feature.swift` and are unit tested.
 
 **Other apps.** Off by default (Settings > Other apps). The screen lists Messages, which opens the iPhone's own app, then the apps found on your iPhone, then Add Apps. There is no Phone tile: iOS has no link that opens the Phone app, and a bare `tel://` link only shows iOS's Call prompt with no number in it (seen on a phone). Phone comes back as a screen of its own. iOS shows no unread badges to other apps, so there are none. If you switch Other apps off while that screen is open, you land on Home.
 
