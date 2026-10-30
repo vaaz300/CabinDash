@@ -12,12 +12,18 @@ import Testing
         #expect(Set(symbols).count == Feature.allCases.count)
     }
 
-    @Test func dockHoldsHomeMapMusicDrive() {
-        #expect(Dock.features(showOtherApps: false) == [.dashboard, .map, .music, .drive])
+    @Test func dockHoldsHomeMapMusicPhoneDrive() {
+        #expect(Dock.features(showOtherApps: false) == [.dashboard, .map, .music, .phone, .drive])
+    }
+
+    @Test func phoneIsAFeature() {
+        #expect(Feature.phone.title == "Phone")
+        #expect(Feature.phone.symbol == "phone.fill")
+        #expect(Dock.isAvailable(.phone, showOtherApps: false))
     }
 
     @Test func appsJoinsTheDockLastWhenOtherAppsIsOn() {
-        #expect(Dock.features(showOtherApps: true) == [.dashboard, .map, .music, .drive, .apps])
+        #expect(Dock.features(showOtherApps: true) == [.dashboard, .map, .music, .phone, .drive, .apps])
     }
 
     @Test func settingsIsTheFooterAndNeverInTheStack() {
@@ -85,6 +91,22 @@ import Testing
 
     @Test func routeComesBeforeMusic() {
         #expect(Strips.visible(on: .drive, musicActive: true, routeGuiding: true) == [.route, .music])
+    }
+
+    @Test func callStripShowsEverywhereButPhoneAndTheDashboard() {
+        #expect(Strips.visible(on: .phone, musicActive: false, routeGuiding: false, callActive: true).isEmpty)
+        #expect(Strips.visible(on: .dashboard, musicActive: false, routeGuiding: false, callActive: true).isEmpty)
+        for feature in [Feature.map, .music, .drive, .settings, .apps] {
+            #expect(Strips.visible(on: feature, musicActive: false, routeGuiding: false, callActive: true) == [.call])
+        }
+    }
+
+    @Test func callComesFirst() {
+        #expect(Strips.visible(on: .drive, musicActive: true, routeGuiding: true, callActive: true) == [.call, .route, .music])
+    }
+
+    @Test func routeAndMusicStillShowOnPhone() {
+        #expect(Strips.visible(on: .phone, musicActive: true, routeGuiding: true) == [.route, .music])
     }
 
     @Test func nothingShowsWhenNothingIsActive() {
