@@ -32,6 +32,9 @@ private struct PlayerView: View {
     var body: some View {
         GeometryReader { proxy in
             let side = min(proxy.size.height, proxy.size.width * 0.42)
+            // With the turn bar along the bottom there is less height. The column then drops the album line and
+            // tightens, so it ends level with the artwork instead of running into the bar.
+            let compact = proxy.size.height < 232
             HStack(spacing: 28) {
                 Artwork(url: playing.artworkURL)
                     .frame(width: side, height: side)
@@ -39,7 +42,7 @@ private struct PlayerView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
                     Text(playing.title)
-                        .font(.system(size: 28, weight: .bold))
+                        .font(.system(size: compact ? 24 : 28, weight: .bold))
                         .lineLimit(2)
                         .minimumScaleFactor(0.7)
                     Text(playing.subtitle)
@@ -47,7 +50,7 @@ private struct PlayerView: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .padding(.top, 2)
-                    if !playing.album.isEmpty {
+                    if !compact, !playing.album.isEmpty {
                         Text(playing.album)
                             .font(.system(size: 16, weight: .regular))
                             .foregroundStyle(.tertiary)
@@ -56,10 +59,10 @@ private struct PlayerView: View {
                     }
 
                     ProgressBar(spotify: spotify, duration: playing.duration, canSeek: playing.canSeek)
-                        .padding(.top, 12)
+                        .padding(.top, compact ? 6 : 12)
 
-                    Controls(spotify: spotify, track: playing)
-                        .padding(.top, 6)
+                    Controls(spotify: spotify, track: playing, compact: compact)
+                        .padding(.top, compact ? 2 : 6)
 
                     if spotify.phoneAsleep {
                         // iOS puts Spotify to sleep soon after it stops playing; only opening it wakes it.
@@ -172,21 +175,23 @@ private struct ProgressBar: View {
 private struct Controls: View {
     let spotify: SpotifyModel
     let track: NowPlaying
+    /// Shorter rows, for when the screen has less height (see PlayerView).
+    let compact: Bool
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: compact ? 0 : 4) {
             HStack(spacing: 44) {
                 Spacer(minLength: 0)
-                ControlButton(symbol: "backward.fill", size: 32, label: "Previous", enabled: track.canSkipPrevious) {
+                ControlButton(symbol: "backward.fill", size: 32, label: "Previous", height: compact ? 48 : 56, enabled: track.canSkipPrevious) {
                     Task { await spotify.skipPrevious() }
                 }
                 ControlButton(
                     symbol: track.isPlaying ? "pause.fill" : "play.fill", size: 40,
-                    label: track.isPlaying ? "Pause" : "Play"
+                    label: track.isPlaying ? "Pause" : "Play", height: compact ? 48 : 56
                 ) {
                     Task { await spotify.togglePlayPause() }
                 }
-                ControlButton(symbol: "forward.fill", size: 32, label: "Next", enabled: track.canSkipNext) {
+                ControlButton(symbol: "forward.fill", size: 32, label: "Next", height: compact ? 48 : 56, enabled: track.canSkipNext) {
                     Task { await spotify.skipNext() }
                 }
                 Spacer(minLength: 0)
@@ -219,6 +224,7 @@ private struct ControlButton: View {
     let symbol: String
     let size: CGFloat
     let label: String
+    var height: CGFloat = 56
     var enabled = true
     let action: () -> Void
 
@@ -230,7 +236,7 @@ private struct ControlButton: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .bold))
                 .foregroundStyle(.primary)
-                .frame(width: 72, height: 56)
+                .frame(width: 72, height: height)
                 .contentShape(Rectangle())
         }
         .buttonStyle(PressScaleStyle(scale: 0.88))

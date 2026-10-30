@@ -21,8 +21,10 @@ before it. The details, including what was and was not checked, are in `docs/AUD
   after it (`cabindash-beta-2.2`); this changelog and the README's "Versions" section.
 - Every IPA is also published as a GitHub release (Code > Releases) with these notes, so it no longer disappears after
   7 days.
-- The next-turn and now-playing bars moved from the top right to the bottom right of every screen, so each screen's own
-  controls start at the top (on Music, the section tabs line up with the top of the dock).
+- The next-turn and now-playing strips moved from the top right into one bar along the bottom of every screen, as wide
+  as the screen's content (split in two when both show), so each screen's own controls start at the top: on Music the
+  section tabs line up with the top of the dock. Each screen ends above the bar: the Map's route panel and buttons no
+  longer sit under the music strip, and Now Playing tightens (no album line) when the bar leaves it less height.
 - Green instead of orange everywhere the app highlights something: Music's tabs, shuffle and repeat when on, the like
   tick, buttons, the Drive gauge and toasts. At night it is Spotify's own green; by day a deeper green that reads on light.
 

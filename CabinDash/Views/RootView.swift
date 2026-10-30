@@ -42,9 +42,9 @@ struct RootView: View {
                 .padding(.leading, CarLayout.edge)
                 .padding(.vertical, CarLayout.edge)
         }
-        // The next turn and the playing song sit along the bottom right, under each screen's content, so the top of
-        // every screen stays its own (on Music, the section bar lines up with the top of the rail).
-        .overlay(alignment: .bottomTrailing) {
+        // The next turn and the playing song sit in one bar along the bottom, as wide as the screens' content, so the top
+        // of every screen stays its own (on Music, the section bar lines up with the top of the rail).
+        .overlay(alignment: .bottom) {
             StripStack()
                 .padding(.leading, CarLayout.railReserve)
                 .padding(.trailing, CarLayout.edge)

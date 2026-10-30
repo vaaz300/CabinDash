@@ -9,7 +9,9 @@ struct StripStack: View {
     var body: some View {
         let strips = model.visibleStrips
 
-        VStack(alignment: .trailing, spacing: 8) {
+        // One bar along the bottom, as wide as the screen's content, so its edges line up with what is above it.
+        // With both strips showing they share it half and half, the next turn first.
+        HStack(spacing: StripClearance.gap) {
             ForEach(strips, id: \.self) { strip in
                 Group {
                     switch strip {
@@ -19,10 +21,11 @@ struct StripStack: View {
                         MiniPlayerStrip()
                     }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .transition(.opacity)
             }
         }
-        .frame(maxWidth: 380)
+        .frame(height: strips.isEmpty ? 0 : StripClearance.height)
         .animation(.easeOut(duration: 0.2), value: strips)
     }
 }
@@ -41,23 +44,17 @@ extension AppModel {
 /// How much room a screen keeps free along its bottom edge so its content ends above the strips instead of under them.
 /// The heights are those of the strips as drawn below; if a strip changes size, change them here too.
 enum StripClearance {
-    private static let routeHeight: CGFloat = 56
-    private static let musicHeight: CGFloat = 52
-    private static let spacing: CGFloat = 8
+    /// The height of the bar the strips sit in. Both strips are drawn to fill it.
+    static let height: CGFloat = 56
+    /// The gap between the strips, and between the bar and the content above it.
+    static let gap: CGFloat = 10
 
-    /// The room the strips take, with the edge below them and a gap above them. Zero when nothing floats there.
+    /// The room the bar takes, with the edge below it and the gap above it. Zero when nothing floats there.
     static func reserve(for strips: [Strip]) -> CGFloat {
-        guard !strips.isEmpty else { return 0 }
-        let heights = strips.reduce(CGFloat(0)) { total, strip in
-            switch strip {
-            case .route: return total + routeHeight
-            case .music: return total + musicHeight
-            }
-        }
-        return CarLayout.edge + heights + spacing * CGFloat(strips.count - 1) + spacing
+        strips.isEmpty ? 0 : CarLayout.edge + height + gap
     }
 
-    /// The bottom padding for a screen: the usual edge when nothing floats there, otherwise room for the strips.
+    /// The bottom padding for a screen: the usual edge when nothing floats there, otherwise room for the bar.
     static func bottom(for strips: [Strip]) -> CGFloat {
         max(CarLayout.edge, reserve(for: strips))
     }
@@ -105,9 +102,9 @@ struct MiniPlayerStrip: View {
                 .buttonStyle(PressScaleStyle(scale: 0.9))
                 .accessibilityLabel(playing.isPlaying ? "Pause" : "Play")
             }
-            .padding(.leading, 8)
-            .padding(.trailing, 4)
-            .padding(.vertical, 4)
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
+            .frame(maxHeight: .infinity)
             .glass(radius: 18)
         }
     }
@@ -171,7 +168,7 @@ struct RouteBannerStrip: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 8)
+                .frame(maxHeight: .infinity)
                 .glass(radius: 18)
                 .contentShape(Rectangle())
             }

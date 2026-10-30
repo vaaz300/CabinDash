@@ -28,7 +28,9 @@ struct MapScreen: View {
                     Spacer(minLength: 0)
                 }
                 .padding(.leading, CarLayout.railReserve)
-                .padding(.vertical, CarLayout.edge)
+                .padding(.top, CarLayout.edge)
+                // The panel ends above the bar along the bottom, so the playing song never covers its buttons.
+                .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
 
                 HStack(spacing: 10) {
                     Spacer(minLength: 0)
@@ -43,7 +45,7 @@ struct MapScreen: View {
                 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.trailing, CarLayout.edge)
-                // The playing song floats along the bottom right; the speed and re-centre buttons sit just above it.
+                // The playing song sits in a bar along the bottom; the speed and re-centre buttons sit just above it.
                 .padding(.bottom, StripClearance.bottom(for: model.visibleStrips))
             }
         }

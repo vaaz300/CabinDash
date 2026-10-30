@@ -74,7 +74,7 @@ Not handled: iOS may ask "Open in <app>?" for some links the first time. That is
 
 The app is **landscape only** (both directions; upside-down is not offered, which is normal for iPhones). A frosted dock runs down the left edge and is the same on every screen: the time, Wi-Fi or cellular, a GPS dot, the battery, then buttons for Home, Map, Music and Drive (and Apps, if Other apps is switched on in Settings), with Settings at the bottom. The buttons are sized to fit the screen height and never drop below 30 points; with Apps on, a small iPhone gets small buttons. The rest of the screen is the feature you are on. Content stays inside the safe area, so the Dynamic Island and rounded corners should not cover it. The Map screen is the one exception: the map itself runs under them.
 
-The music and next-turn bars sit along the bottom right of every screen except the one that already shows that information. Each screen ends above them; on the Map, the speed and re-centre buttons move up to sit above the music bar. On a narrow phone the music bar may still reach under the Map's place panel on the left. That has not been checked on a screen.
+The music and next-turn strips sit in one bar along the bottom of every screen except the one that already shows that information, as wide as the screen's content and split in two when both show. Each screen ends above the bar: on the Map, the place panel and the speed and re-centre buttons; on Music, Now Playing drops the album line and tightens its controls when the bar leaves it less height.
 
 What it cannot copy from CarPlay:
 
@@ -84,7 +84,7 @@ What it cannot copy from CarPlay:
 * **Other apps' screens.** iOS has no way to show another app's screen or its live content inside Cabin Dash. Tapping Spotify or Google Maps opens that app and leaves Cabin Dash. That is why Map and Music are separate screens that Cabin Dash draws itself.
 * **Phone and Messages.** Cabin Dash has no Phone or Messages screen yet. The optional Other apps screen has a Messages tile that opens `sms://`. It has no Phone tile: iOS has no public link that opens the Phone app, and the bare `tel://` the tile used opened iOS's Call prompt with no number in it (seen on a phone, 27 Oct 2026). A `tel:` link only works with a number, and iOS always asks "Call?" before dialling it. That prompt is iOS's own and cannot be skipped, so even the Phone screen planned for a later phase will show it once per call.
 
-**None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the dock spacing on a small iPhone (SE-sized screens are the likely problem), the three Home widgets, and whether the bottom-right bars cover anything you need.
+**None of this has been looked at on a screen.** The cloud build saves a screenshot after launching (`launch.png`), but a simulator has no GPS track, no Spotify and no Google Maps. When you first run it on a phone, check: the dock spacing on a small iPhone (SE-sized screens are the likely problem), the three Home widgets, and whether the bottom bar covers anything you need.
 
 ## 6a. The Map screen
 
