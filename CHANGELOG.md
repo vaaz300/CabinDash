@@ -15,16 +15,22 @@ their runs; inside the app they all say "1.0 (1)".
 Each entry: what changed for you, the run and the commit it was built from. "Rebuilt" means the same code as the beta
 before it. The details, including what was and was not checked, are in `docs/AUDIT.md`.
 
-## Next beta (2.2, from the next IPA run)
+## Next beta (2.3, from the next IPA run)
+
+- The next-turn and now-playing strips share one bar along the bottom, as wide as the screen's content (side by side
+  when both show), so its edges line up with Music's tabs and artwork. The Map's route panel ends above it, so the music
+  strip no longer covers its buttons. Now Playing tightens (no album line, shorter control rows) when the bar leaves it
+  less height, so its controls end level with the artwork.
+
+## Beta 2.2 (run 22, 29 Oct 2026, `3c3b8d0`)
 
 - Version numbers: Settings > About says which beta (or release) and build this is; the IPA file and the artifact are named
   after it (`cabindash-beta-2.2`); this changelog and the README's "Versions" section.
 - Every IPA is also published as a GitHub release (Code > Releases) with these notes, so it no longer disappears after
-  7 days.
-- The next-turn and now-playing strips moved from the top right into one bar along the bottom of every screen, as wide
-  as the screen's content (split in two when both show), so each screen's own controls start at the top: on Music the
-  section tabs line up with the top of the dock. Each screen ends above the bar: the Map's route panel and buttons no
-  longer sit under the music strip, and Now Playing tightens (no album line) when the bar leaves it less height.
+  7 days. This is the first one.
+- The next-turn and now-playing strips moved from the top right to the bottom right of every screen, so each screen's own
+  controls start at the top: on Music the section tabs line up with the top of the dock. Known problem, fixed in 2.3: on
+  the Map the music strip covered the route panel's buttons, and on Music the controls ran into the turn strip.
 - Green instead of orange everywhere the app highlights something: Music's tabs, shuffle and repeat when on, the like
   tick, buttons, the Drive gauge and toasts. At night it is Spotify's own green; by day a deeper green that reads on light.
 
