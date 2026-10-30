@@ -121,7 +121,7 @@ import Testing
         let entries = [person("1", "zoe"), person("2", "Ádám"), person("3", "Brian"), person("4", "", "", org: "112 Emergency"), person("5", "aoife")]
         let sections = ContactDirectory.sections(entries, query: "")
         #expect(sections.map(\.letter) == ["A", "B", "Z", "#"])
-        #expect(sections[0].entries.map(\.id) == ["2", "5"])
+        #expect(sections.first?.entries.map(\.id) == ["2", "5"])
     }
 
     @Test func peopleWithoutANumberAreLeftOut() {
@@ -151,22 +151,30 @@ import Testing
 @Suite struct PhoneBookTests {
     @Test func pinningAddsAFavouriteOnce() {
         var book = PhoneBook()
-        #expect(book.pin(name: "Ann", number: "087 555 0001", contactID: "c1"))
-        #expect(book.pin(name: "Ann", number: "087-555-0001", contactID: "c1"))
+        let first = book.pin(name: "Ann", number: "087 555 0001", contactID: "c1")
+        let again = book.pin(name: "Ann", number: "087-555-0001", contactID: "c1")
+        #expect(first)
+        #expect(again)
         #expect(book.favourites.count == 1)
         #expect(book.isPinned("0875550001"))
     }
 
     @Test func favouritesStopAtTwelve() {
         var book = PhoneBook()
-        for index in 0..<12 { #expect(book.pin(name: "P\(index)", number: "08700000\(10 + index)", contactID: nil)) }
-        #expect(!book.pin(name: "One more", number: "0861111111", contactID: nil))
+        var accepted = 0
+        for index in 0..<12 where book.pin(name: "P\(index)", number: "08700000\(10 + index)", contactID: nil) {
+            accepted += 1
+        }
+        let oneMore = book.pin(name: "One more", number: "0861111111", contactID: nil)
+        #expect(accepted == 12)
+        #expect(!oneMore)
         #expect(book.favourites.count == PhoneBook.maxFavourites)
     }
 
     @Test func pinningNothingDialableIsRefused() {
         var book = PhoneBook()
-        #expect(!book.pin(name: "Nobody", number: "abc", contactID: nil))
+        let pinned = book.pin(name: "Nobody", number: "abc", contactID: nil)
+        #expect(!pinned)
         #expect(book.favourites.isEmpty)
     }
 
@@ -201,12 +209,10 @@ import Testing
     @Test func decodesOldOrPartialSaves() throws {
         let book = try JSONDecoder().decode(PhoneBook.self, from: Data("{}".utf8))
         #expect(book == PhoneBook())
-        let round = try JSONDecoder().decode(PhoneBook.self, from: JSONEncoder().encode({ () -> PhoneBook in
-            var b = PhoneBook()
-            _ = b.pin(name: "Ann", number: "0875550001", contactID: "c1")
-            b.noteCall(name: "Ann", number: "0875550001", at: Date(timeIntervalSince1970: 5))
-            return b
-        }()))
+        var saved = PhoneBook()
+        saved.pin(name: "Ann", number: "0875550001", contactID: "c1")
+        saved.noteCall(name: "Ann", number: "0875550001", at: Date(timeIntervalSince1970: 5))
+        let round = try JSONDecoder().decode(PhoneBook.self, from: JSONEncoder().encode(saved))
         #expect(round.favourites.first?.name == "Ann")
         #expect(round.calls.first?.name == "Ann")
     }
