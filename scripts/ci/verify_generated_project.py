@@ -170,6 +170,9 @@ def check(project: Project, root: pathlib.Path, scheme_exists: bool, plist: dict
     # Generated Info.plist
     record("Info.plist has a location usage description",
            bool(str(plist.get("NSLocationWhenInUseUsageDescription", "")).strip()))
+    # Without it, asking for Contacts access makes iOS close the app.
+    record("Info.plist has a contacts usage description",
+           bool(str(plist.get("NSContactsUsageDescription", "")).strip()))
     record("Info.plist LSApplicationQueriesSchemes matches Catalog.swift",
            list(plist.get("LSApplicationQueriesSchemes", [])) == expected_schemes,
            f"plist has {len(plist.get('LSApplicationQueriesSchemes', []))}, catalog has {len(expected_schemes)}")

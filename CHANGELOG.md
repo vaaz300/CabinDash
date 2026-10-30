@@ -17,7 +17,9 @@ before it. The details, including what was and was not checked, are in `docs/AUD
 
 ## Next beta (2.5, from the next IPA run)
 
-- Nothing yet.
+- Phone: a Phone button in the dock with Favourites, Recents (calls placed from Cabin Dash), Contacts with search, and a
+  Keypad. iOS asks before each call and shows its own call screen. A call bar with the call's time shows on the other
+  screens while a call is on. Contacts and the Keypad are hidden while driving unless Passenger mode is on.
 
 ## Beta 2.4 (run 24, 30 Oct 2026, `7159691`)
 

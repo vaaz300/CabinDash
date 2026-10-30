@@ -106,6 +106,14 @@ See `docs/SPOTIFY-SETUP.md` and `docs/SPOTIFY-RULES.md`. In short: the Music scr
 * **Typing is locked while moving.** Search is switched off above about 8 km/h and comes back after 10 seconds below 4 km/h. The speed comes from the iPhone's GPS, so the lock can only engage when there is a GPS reading, and a lost signal never unlocks it by itself (it waits for a slow reading). Passenger mode turns the lock off.
 * Progress is read every few seconds and moved forward locally in between, so the bar can be a second or two off.
 
+## 6c. Phone and Contacts
+
+* **Calls go through iOS.** Cabin Dash opens a `tel:` link; iOS asks "Call …?" and its own call screen takes over. No app can place a call without that, answer or end a call, switch to speaker or mute, or replace the incoming-call screen.
+* **What Cabin Dash knows about a call.** iOS tells every app when a call is being placed, ringing, connected, on hold or ended (`CXCallObserver`), never the number or the name. So the call bar says "On a call" and how long, not who.
+* **Recents** lists only calls placed from Cabin Dash. Apps cannot read the Phone app's history or voicemail.
+* **Contacts.** iOS asks once. Cabin Dash reads names and numbers only (no photos, notes or addresses) and keeps nothing outside the phone. With iOS 18's limited access it sees only the people you shared; **Share more** opens iOS's picker (on iOS 17, Settings). If you say no, Favourites, Recents and the Keypad still work.
+* **While driving** the Contacts list and the Keypad are replaced by a note, as search is in Music; Favourites and Recents stay. Passenger mode lifts it.
+
 ## 7. What a simulator build cannot show
 
 The GitHub build runs on a simulator with a pretend location. It cannot show: real GPS speed, how installed-app detection behaves when real apps are present (a simulator has no Spotify or Google Maps), whether the guessed link types are right, or anything about signing and installing. Those can only be checked on your iPhone.

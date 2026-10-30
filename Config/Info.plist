@@ -70,6 +70,8 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSContactsUsageDescription</key>
+	<string>Cabin Dash shows your contacts on its Phone screen so you can call them with one tap. They stay on this iPhone.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Cabin Dash uses your location to show your speed, heading and trip distance while you drive. Your location stays on this iPhone.</string>
 	<key>SpotifyClientID</key>

@@ -6,27 +6,72 @@ import CabinCore
 struct StripStack: View {
     /// The strips to draw, in order.
     let strips: [Strip]
+    /// Side by side in one bar (the bottom of most screens), or one above the other (the Map's top right corner).
+    var stacked = false
 
     var body: some View {
-
         // One bar along the bottom, as wide as the screen's content, so its edges line up with what is above it.
-        // With both strips showing they share it half and half, the next turn first.
-        HStack(spacing: StripClearance.gap) {
+        // With more than one strip showing they share it equally, the most urgent first.
+        let layout = stacked
+            ? AnyLayout(VStackLayout(spacing: StripClearance.gap))
+            : AnyLayout(HStackLayout(spacing: StripClearance.gap))
+        layout {
             ForEach(strips, id: \.self) { strip in
                 Group {
                     switch strip {
+                    case .call:
+                        CallStrip()
                     case .route:
                         RouteBannerStrip()
                     case .music:
                         MiniPlayerStrip()
                     }
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity)
+                .frame(height: StripClearance.height)
                 .transition(.opacity)
             }
         }
-        .frame(height: strips.isEmpty ? 0 : StripClearance.height)
         .animation(.easeOut(duration: 0.2), value: strips)
+    }
+}
+
+/// The phone's call, while there is one: what it is doing and, once connected, how long it has lasted. iOS does not say
+/// who the call is with. Tapping opens the Phone screen.
+struct CallStrip: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        let phone = model.phone
+        Button {
+            model.go(.phone)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: phone.callStatus == .ringing ? "phone.arrow.down.left.fill" : "phone.fill")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Theme.good)
+                    .frame(width: 30)
+                Text(phone.callStatus.title)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                if let since = phone.callConnectedAt {
+                    TimelineView(.periodic(from: since, by: 1)) { context in
+                        Text(CallFormat.duration(context.date.timeIntervalSince(since)))
+                            .font(.system(size: 15, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .frame(maxHeight: .infinity)
+            .glass(radius: 18)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressScaleStyle(scale: 0.97))
+        .accessibilityLabel("\(phone.callStatus.title). Open Phone")
     }
 }
 
@@ -36,7 +81,8 @@ extension AppModel {
         Strips.visible(
             on: router.current,
             musicActive: spotify.phase == .signedIn && spotify.nowPlaying != nil,
-            routeGuiding: route.phase == .guiding
+            routeGuiding: route.phase == .guiding,
+            callActive: phone.callStatus.isLive
         )
     }
 

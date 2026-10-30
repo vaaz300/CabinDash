@@ -2,18 +2,19 @@
 
 A self-contained driving screen for the iPhone, styled after CarPlay. It draws its own screens on the phone's display, so it works in a car with no CarPlay and no Wi-Fi hotspot. Put the phone in a mount, plug it in, and open it. Landscape only.
 
-A frosted dock runs down the left edge and stays put on every screen: the time, connection and battery, then **Home, Map, Music, Drive**, and a gear for **Settings**.
+A frosted dock runs down the left edge and stays put on every screen: the time, connection and battery, then **Home, Map, Music, Phone, Drive**, and a gear for **Settings**.
 
 - **Home.** Three live widgets: a map that follows you (with the next turn while you navigate), what Spotify is playing with previous, play/pause and next, and your speed with the trip so far. Tap a widget to open its full screen.
 - **Map.** A full-screen Apple Maps view with traffic. Search a place or tap Home or Work, see the route, and follow it with turn-by-turn cards. **Open in Google Maps** (or Waze or Apple Maps, your choice in Settings) hands the trip to that app for the real navigation.
 - **Music.** A small Spotify client: what is playing with previous, play/pause, next, seek, shuffle and repeat, Spotify's like button, your playlists and Liked Songs, search, the queue, and a device picker. Spotify's app on the phone plays the sound; Cabin Dash plays and steers it through Spotify's iOS SDK, and opens it for a moment when it is asleep. Search is switched off while the car is moving (Passenger mode in Settings lifts that). Needs a Spotify Premium account and a one-time setup: `docs/SPOTIFY-SETUP.md`. Spotify's rules and where Cabin Dash falls short of them: `docs/SPOTIFY-RULES.md`.
+- **Phone.** Favourites (people you pin, one tap to call), Recents (calls placed from Cabin Dash), your Contacts A to Z with search, and a Keypad. Tapping Call hands the number to iOS, which asks "Call …?" and then shows its own call screen; Cabin Dash cannot place, answer or end a call itself. While a call is on, a call bar with its time shows on the other screens (iOS does not say who the call is with). Contacts and the Keypad are hidden while the car is moving, unless Passenger mode is on. Contacts are read only with your permission, names and numbers only, and stay on the phone; with iOS 18's limited access, Cabin Dash shows the people you shared.
 - **Drive.** Live speed dial, heading, trip distance, trip time and average speed from the iPhone's GPS.
 - **Settings.** Units, directions app, Spotify, theme and wallpaper, saved places.
 - **Other apps (optional, off by default).** Turn on **Show Other apps in the dock** in Settings and an Apps button appears. It lists the apps found on your iPhone, with each app's App Store icon; tapping one leaves Cabin Dash and opens it. iOS does not allow another app's screen inside Cabin Dash.
 
 The track that is playing and the next turn also show as a bar along the bottom of every screen that does not already show them (on the Map, the playing song sits at the top right instead).
 
-**Not built yet:** Phone, Messages and Contacts as screens of their own (the Phone and Messages tiles on the Other apps screen hand off to the iPhone's own apps), spoken turn-by-turn directions, and car data. Spotify has no Browse tab or artist pages here. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; Phase 1 (the shell and Home) and Phase 2 (Music) are built; Phase 2's plan is `docs/superpowers/plans/2026-10-27-phase-2-music-library.md`.
+**Not built yet:** Messages as a screen of its own (the Messages tile on the Other apps screen hands off to the iPhone's own app), Message and Navigate buttons on a contact, spoken turn-by-turn directions, and car data. Spotify has no Browse tab or artist pages here. The design and the order they will be built in are in `docs/superpowers/specs/2026-10-26-self-contained-cabin-dash-design.md`; Phase 1 (the shell and Home), Phase 2 (Music) and Phase 3 (Phone and Contacts) are built; Phase 2's plan is `docs/superpowers/plans/2026-10-27-phase-2-music-library.md`.
 
 This guide is written for **Windows, with no Mac**. A free GitHub Actions "cloud Mac" does the building.
 
@@ -44,7 +45,7 @@ run number, and a run that fails still uses its number.
 | | Status |
 |---|---|
 | Swift code compiles | **Read the latest "iOS build" run in the Actions tab.** Green means the app and its tests compiled on GitHub's macOS runner (Xcode 26.5). This file cannot say it for you, because it can be out of date the moment a new push lands. |
-| Unit tests | 378 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
+| Unit tests | 417 `@Test` functions are declared in `CabinCore/Tests`. The build's test-count step fails the run if fewer than the declared number executed. |
 | App starts | The launch step checks the app is still running 12 seconds after launch on a simulator. |
 | Helper scripts used by the build | Tested on sample data, and they run on every build. |
 | URL-scheme list matches the app catalogue | Checked by script on every build (37 apps, 30 schemes). |

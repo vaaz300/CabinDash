@@ -23,6 +23,8 @@ final class AppModel {
     /// Playlists, Liked Songs, search and the queue, for the Music screen.
     let library: SpotifyLibraryModel
     let route = RouteModel()
+    /// Contacts, favourites, the keypad and the phone's call state, for the Phone screen and the call strip.
+    let phone: PhoneModel
 
     /// True while the car is going faster than about 8 km/h. Assigned only when it changes, so screens do not redraw on every GPS fix.
     private(set) var isMoving = false
@@ -45,6 +47,7 @@ final class AppModel {
         let spotify = SpotifyModel()
         self.toast = toast
         self.spotify = spotify
+        phone = PhoneModel(defaults: defaults, toast: toast)
         library = SpotifyLibraryModel(spotify: spotify, toast: toast)
     }
 
@@ -102,6 +105,8 @@ final class AppModel {
     func startUp(location: LocationModel) async {
         refreshInstalled()
         device.start()
+        phone.start()
+        phone.refreshAccess()
         location.start()
     }
 

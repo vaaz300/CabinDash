@@ -27,7 +27,7 @@ struct MapScreen: View {
                         .frame(maxHeight: .infinity, alignment: .top)
                     // The playing song sits in the open space at the top right, level with the top of the panel,
                     // rather than in a bar along the bottom: the panel keeps the full height and the map stays clear.
-                    StripStack(strips: model.visibleStrips)
+                    StripStack(strips: model.visibleStrips, stacked: true)
                         .frame(maxWidth: 420)
                         .frame(maxWidth: .infinity, alignment: .topTrailing)
                 }

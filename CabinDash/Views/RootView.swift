@@ -11,7 +11,8 @@ struct RootView: View {
     var body: some View {
         @Bindable var model = model
 
-        let onMusic = model.router.current == .music
+        // Music and Phone sit on the darkened, frosted wallpaper.
+        let onMusic = model.router.current == .music || model.router.current == .phone
         ZStack(alignment: .leading) {
             RibbonWallpaper(wallpaper: model.prefs.wallpaper)
                 .ignoresSafeArea()
@@ -76,6 +77,8 @@ struct RootView: View {
             switch phase {
             case .active:
                 model.refreshInstalled()
+                // Contacts access may have been changed in Settings while Cabin Dash was away.
+                model.phone.refreshAccess()
                 location.start()
                 model.spotify.setActive(true)
                 applyIdleTimer()
@@ -124,6 +127,8 @@ struct RootView: View {
             MapScreen()
         case .music:
             MusicScreen()
+        case .phone:
+            PhoneScreen()
         case .drive:
             DriveView(landscape: true)
                 .padding(.leading, CarLayout.railReserve)

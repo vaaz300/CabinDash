@@ -5,6 +5,8 @@ public enum Feature: String, CaseIterable, Codable, Hashable, Sendable {
     case dashboard
     case map
     case music
+    /// Contacts, favourites, a keypad and calls placed from Cabin Dash. iOS's own call screen takes over for the call.
+    case phone
     case drive
     case settings
     /// The optional list of other apps installed on the iPhone. Opening one of them leaves Cabin Dash.
@@ -15,6 +17,7 @@ public enum Feature: String, CaseIterable, Codable, Hashable, Sendable {
         case .dashboard: return "Home"
         case .map: return "Map"
         case .music: return "Music"
+        case .phone: return "Phone"
         case .drive: return "Drive"
         case .settings: return "Settings"
         case .apps: return "Apps"
@@ -27,6 +30,7 @@ public enum Feature: String, CaseIterable, Codable, Hashable, Sendable {
         case .dashboard: return "house.fill"
         case .map: return "map.fill"
         case .music: return "music.note"
+        case .phone: return "phone.fill"
         case .drive: return "speedometer"
         case .settings: return "gearshape.fill"
         case .apps: return "square.grid.2x2.fill"
@@ -38,6 +42,7 @@ public enum Feature: String, CaseIterable, Codable, Hashable, Sendable {
         case .dashboard: return .graphite
         case .map: return .green
         case .music: return .red
+        case .phone: return .green
         case .drive: return .orange
         case .settings: return .graphite
         case .apps: return .blue
@@ -52,7 +57,7 @@ public enum Dock {
 
     /// The stack, top to bottom. Apps appears only when the Other apps switch is on.
     public static func features(showOtherApps: Bool) -> [Feature] {
-        var result: [Feature] = [.dashboard, .map, .music, .drive]
+        var result: [Feature] = [.dashboard, .map, .music, .phone, .drive]
         if showOtherApps { result.append(.apps) }
         return result
     }
@@ -86,6 +91,8 @@ public struct Router: Equatable, Sendable {
 
 /// A thin bar that follows the driver from screen to screen.
 public enum Strip: Hashable, Sendable {
+    /// A call is in progress, ringing or being placed.
+    case call
     case route
     case music
 }
@@ -93,9 +100,10 @@ public enum Strip: Hashable, Sendable {
 public enum Strips {
     /// The strips to show on `feature`, most urgent first. A feature never repeats its own information in a strip,
     /// and the Dashboard already has a widget for each, so it shows none.
-    public static func visible(on feature: Feature, musicActive: Bool, routeGuiding: Bool) -> [Strip] {
+    public static func visible(on feature: Feature, musicActive: Bool, routeGuiding: Bool, callActive: Bool = false) -> [Strip] {
         guard feature != .dashboard else { return [] }
         var result: [Strip] = []
+        if callActive, feature != .phone { result.append(.call) }
         if routeGuiding, feature != .map { result.append(.route) }
         if musicActive, feature != .music { result.append(.music) }
         return result
