@@ -12,8 +12,29 @@ import Testing
         #expect(Set(symbols).count == Feature.allCases.count)
     }
 
-    @Test func dockHoldsHomeMapMusicPhoneDrive() {
-        #expect(Dock.features(showOtherApps: false) == [.dashboard, .map, .music, .phone, .drive])
+    @Test func firstDockPageHoldsTheDrivingScreens() {
+        #expect(Dock.pages(showOtherApps: false).first == [.dashboard, .map, .music, .phone])
+    }
+
+    @Test func secondPageHoldsDriveAndSettings() {
+        #expect(Dock.pages(showOtherApps: false) == [[.dashboard, .map, .music, .phone], [.drive, .settings]])
+    }
+
+    @Test func appsGoesOnTheSecondPageBeforeSettings() {
+        #expect(Dock.pages(showOtherApps: true) == [[.dashboard, .map, .music, .phone], [.drive, .apps, .settings]])
+    }
+
+    @Test func noPageHoldsMoreThanFour() {
+        for showOtherApps in [false, true] {
+            #expect(Dock.pages(showOtherApps: showOtherApps).allSatisfy { $0.count <= Dock.perPage })
+        }
+        #expect(Dock.perPage == 4)
+    }
+
+    @Test func everyFeatureIsOnExactlyOnePage() {
+        let features = Dock.pages(showOtherApps: true).flatMap { $0 }
+        #expect(Set(features) == Set(Feature.allCases))
+        #expect(features.count == Feature.allCases.count)
     }
 
     @Test func phoneIsAFeature() {
@@ -22,14 +43,11 @@ import Testing
         #expect(Dock.isAvailable(.phone, showOtherApps: false))
     }
 
-    @Test func appsJoinsTheDockLastWhenOtherAppsIsOn() {
-        #expect(Dock.features(showOtherApps: true) == [.dashboard, .map, .music, .phone, .drive, .apps])
-    }
-
-    @Test func settingsIsTheFooterAndNeverInTheStack() {
-        #expect(Dock.footer == .settings)
-        #expect(!Dock.features(showOtherApps: false).contains(.settings))
-        #expect(!Dock.features(showOtherApps: true).contains(.settings))
+    @Test func pageOfAFeature() {
+        #expect(Dock.page(of: .music, showOtherApps: false) == 0)
+        #expect(Dock.page(of: .drive, showOtherApps: false) == 1)
+        #expect(Dock.page(of: .settings, showOtherApps: true) == 1)
+        #expect(Dock.page(of: .apps, showOtherApps: false) == nil)
     }
 
     @Test func appsNeedsTheSwitch() {
