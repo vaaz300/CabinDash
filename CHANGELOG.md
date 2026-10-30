@@ -15,11 +15,16 @@ their runs; inside the app they all say "1.0 (1)".
 Each entry: what changed for you, the run and the commit it was built from. "Rebuilt" means the same code as the beta
 before it. The details, including what was and was not checked, are in `docs/AUDIT.md`.
 
-## Next beta (2.3, from the next IPA run)
+## Next beta (2.4, from the next IPA run)
+
+- On the Map the playing song sits at the top right, in the open space beside the route panel and level with its top,
+  instead of in the bar along the bottom. The panel keeps the full height again, so its cards are no longer squeezed.
+
+## Beta 2.3 (run 23, 30 Oct 2026, `025e5cd`)
 
 - The next-turn and now-playing strips share one bar along the bottom, as wide as the screen's content (side by side
-  when both show), so its edges line up with Music's tabs and artwork. On the Map the playing song sits at the top right instead,
-  in the open space beside the route panel, so the panel keeps the full height and its buttons are never covered. Now Playing tightens (no album line, shorter control rows) when the bar leaves it
+  when both show), so its edges line up with Music's tabs and artwork. The Map's route panel ends above it, so the music
+  strip no longer covers its buttons. Now Playing tightens (no album line, shorter control rows) when the bar leaves it
   less height, so its controls end level with the artwork.
 
 ## Beta 2.2 (run 22, 29 Oct 2026, `3c3b8d0`)
